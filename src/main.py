@@ -100,6 +100,17 @@ def run(draft=False, skip_intelligence=False):
         from src.ai_disclosure import add_disclosure
         add_disclosure()
 
+    def paso_dashboard():
+        from src.dashboard import publicar_dashboard
+        info = None
+        if resultado["data"]:
+            info = {"titulo": resultado["data"]["guion"].get("titulo", ""),
+                    "score": resultado["data"].get("score", -1),
+                    "modo": "publicado" if config.get("publicacion", {}).get("activada") else "prueba"}
+        url = publicar_dashboard(info)
+        if url:
+            log.info(f"Panel disponible en: {url}")
+
     steps = []
     from src.intelligence.orchestrator import es_dia_de_actualizacion
     if not skip_intelligence and es_dia_de_actualizacion(config):
@@ -110,6 +121,7 @@ def run(draft=False, skip_intelligence=False):
         ("images", "Generando imagenes", paso_imagenes),
         ("video", "Ensamblando video", paso_video),
         ("disclose", "Aplicando etiqueta IA", paso_disclosure),
+        ("dashboard", "Publicando dashboard", paso_dashboard),
     ]
 
     for key, msg, func in steps:
