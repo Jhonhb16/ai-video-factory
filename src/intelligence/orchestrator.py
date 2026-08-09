@@ -77,10 +77,14 @@ def actualizar_inteligencia(config):
         log.warning(f"Feedback propio fallo (normal al inicio): {e}")
 
 
+def icfg_guiones(config):
+    return int(config.get("intelligence", {}).get("guiones_por_dia", 3))
+
+
 def producir_guion_del_dia(config):
     log.info("Generando 5 guiones desde la matrix...")
     tema = get_next_topic()
-    guiones = generar_guiones_desde_matrix(n=5, tema_semana=tema)
+    guiones = generar_guiones_desde_matrix(n=icfg_guiones(config), tema_semana=tema)
     if not guiones:
         log.error("No se generaron guiones validos")
         return None

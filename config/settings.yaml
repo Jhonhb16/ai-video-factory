@@ -33,6 +33,7 @@ intelligence:
   whisper_device: "cpu"
   score_minimo_publicar: 60
   maximos_reintentos_reescritura: 2
+  guiones_por_dia: 3
   dia_actualizacion_matrix: "lunes"
   hora_actualizacion_matrix: "06:00"
   apify_actor: "apify/instagram-scraper"

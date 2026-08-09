@@ -55,7 +55,7 @@ def generar_guiones_desde_matrix(n=5, tema_semana=None):
             g = chat_json(
                 SYSTEM_PROMPT,
                 f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\nEscribe el guion #{i+1} de hoy. Usa una combinacion de hook y estructura distinta a la de un video tipico. JSON de UN solo guion:",
-                temperature=0.85, max_tokens=4000)
+                temperature=0.85, max_tokens=8000)
         except Exception as e:
             log.warning(f"Guion #{i+1} fallo al generar/parsear: {e}")
             continue
