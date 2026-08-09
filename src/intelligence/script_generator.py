@@ -1,4 +1,4 @@
-"""Genera 5 guiones DESDE la matrix + registro de publicaciones."""
+"""Genera guiones DESDE la matrix (uno por llamada LLM) + registro."""
 import csv
 import json
 import hashlib
@@ -17,41 +17,42 @@ PROHIBIDAS = [
 ]
 
 SYSTEM_PROMPT = """Eres un guionista experto en contenido viral de finanzas personales en español.
-Recibes una MATRIX DE VIRALIDAD con patrones reales. Genera 5 guiones que APLIQUEN esos patrones:
-usa los tipos de hook detectados, las estructuras ganadoras, las frases ganadoras y los temas populares.
+Recibes una MATRIX DE VIRALIDAD con patrones reales. Escribe UN guion que APLIQUE esos patrones.
 Reglas estrictas:
 - Guion entre 280 y 340 palabras (video de 120 segundos)
 - Tono educativo, NUNCA promesas de riqueza o rendimientos
-- Cada guion usa una combinacion DIFERENTE de hook y estructura
-Responde UNICAMENTE JSON valido:
+- Hook de maximo 15 palabras que detenga el scroll
+- 12 escenas visuales
+- Escapa correctamente las comillas dobles dentro de los textos
+Responde UNICAMENTE JSON valido (un solo objeto):
 {
-  "guiones": [
-    {
-      "titulo": "maximo 8 palabras",
-      "tipo_hook": "tipo usado de la matrix",
-      "estructura_usada": "nombre de estructura de la matrix",
-      "hook": "maximo 15 palabras",
-      "guion": "texto completo 280-340 palabras",
-      "cta": "maximo 20 palabras",
-      "escenas": [{"prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
-      "hashtags": ["maximo 5"]
-    }
-  ]
+  "titulo": "maximo 8 palabras",
+  "tipo_hook": "tipo usado de la matrix",
+  "estructura_usada": "nombre de estructura de la matrix",
+  "hook": "maximo 15 palabras",
+  "guion": "texto completo 280-340 palabras",
+  "cta": "maximo 20 palabras",
+  "escenas": [{"prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
+  "hashtags": ["maximo 5"]
 }"""
 
 
 def generar_guiones_desde_matrix(n=5, tema_semana=None):
     matrix = cargar_matrix()
-    temas_ctx = f"\nTema sugerido: {tema_semana}" if tema_semana else ""
+    matrix_txt = json.dumps(matrix, ensure_ascii=False)
+    tema_txt = f"Tema sugerido: {tema_semana}" if tema_semana else "Elige tu un tema de finanzas personales"
 
-    data = chat_json(
-        SYSTEM_PROMPT,
-        f"MATRIX DE VIRALIDAD:\n{json.dumps(matrix, ensure_ascii=False)}\n{temas_ctx}\n\nGenera {n} guiones en JSON:",
-        temperature=0.85, max_tokens=6000)
-
-    guiones = data.get("guiones", [])
     validos = []
-    for g in guiones:
+    for i in range(n):
+        try:
+            g = chat_json(
+                SYSTEM_PROMPT,
+                f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\nEscribe el guion #{i+1} de hoy. Usa una combinacion de hook y estructura distinta a la de un video tipico. JSON de UN solo guion:",
+                temperature=0.85, max_tokens=4000)
+        except Exception as e:
+            log.warning(f"Guion #{i+1} fallo al generar/parsear: {e}")
+            continue
+
         texto = (g.get("hook", "") + " " + g.get("guion", "") + " " + g.get("titulo", "")).lower()
         if any(p.lower() in texto for p in PROHIBIDAS):
             log.warning(f"Guion '{g.get('titulo')}' descartado: frase prohibida")
@@ -63,7 +64,7 @@ def generar_guiones_desde_matrix(n=5, tema_semana=None):
         g["_palabras"] = palabras
         validos.append(g)
 
-    log.info(f"{len(validos)}/{len(guiones)} guiones validos generados desde la matrix")
+    log.info(f"{len(validos)}/{n} guiones validos generados desde la matrix")
     return validos
 
 
