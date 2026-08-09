@@ -56,7 +56,9 @@ jobs:
           R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
           R2_STATE_BUCKET: ${{ secrets.R2_STATE_BUCKET }}
           TELEGRAM_WEBHOOK_URL: ${{ secrets.TELEGRAM_WEBHOOK_URL }}
-        run: python -m src.runner
+        run: |
+          python -c "import os; print('CHECK SECRETS -> GEMINI:', bool((os.getenv('GEMINI_API_KEY') or '').strip()), '| OPENAI:', bool((os.getenv('OPENAI_API_KEY') or '').strip()), '| APIFY:', bool(os.getenv('APIFY_TOKEN')), '| R2:', bool(os.getenv('R2_ACCOUNT_ID')))"
+          python -m src.runner
       - name: Artefacto de video
         if: always()
         uses: actions/upload-artifact@v4

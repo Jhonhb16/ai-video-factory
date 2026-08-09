@@ -10,10 +10,18 @@ log = logging.getLogger("VideoFactory.LLM")
 GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 
 
+def _gemini_key():
+    return (os.getenv("GEMINI_API_KEY") or "").strip()
+
+
+def _openai_key():
+    return (os.getenv("OPENAI_API_KEY") or "").strip()
+
+
 def _provider():
-    if os.getenv("GEMINI_API_KEY"):
+    if _gemini_key():
         return "gemini"
-    if os.getenv("OPENAI_API_KEY"):
+    if _openai_key():
         return "openai"
     raise RuntimeError("No hay GEMINI_API_KEY ni OPENAI_API_KEY configurados")
 
@@ -33,13 +41,13 @@ def chat_text(system, user, temperature=0.7, max_tokens=4000, force_json=False):
         except Exception as e:
             last_err = e
             wait = 2 ** (attempt + 1)
-            log.warning(f"LLM fallo ({prov}, intento {attempt+1}): {e}. Retry en {wait}s")
+            log.warning(f"LLM fallo ({prov}, intento {attempt+1}/3): {e}. Retry en {wait}s")
             time.sleep(wait)
-    raise RuntimeError(f"LLM fallo tras 3 intentos: {last_err}")
+    raise RuntimeError(f"LLM ({prov}) fallo tras 3 intentos: {last_err}")
 
 
 def _gemini(system, user, temperature, max_tokens, force_json):
-    key = os.getenv("GEMINI_API_KEY")
+    key = _gemini_key()
     gen_cfg = {"temperature": temperature, "maxOutputTokens": max_tokens}
     if force_json:
         gen_cfg["response_mime_type"] = "application/json"
@@ -54,8 +62,13 @@ def _gemini(system, user, temperature, max_tokens, force_json):
         if r.status_code == 404:
             last_err = RuntimeError(f"modelo {model} no disponible")
             continue
-        r.raise_for_status()
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        if r.status_code != 200:
+            raise RuntimeError(f"Gemini {model} HTTP {r.status_code}: {r.text[:300]}")
+        data = r.json()
+        try:
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError):
+            raise RuntimeError(f"Gemini {model} respuesta vacia: {json.dumps(data)[:300]}")
         log.info(f"LLM: gemini/{model}")
         return _clean(text, force_json)
     raise last_err
@@ -77,9 +90,10 @@ def _openai(system, user, temperature, max_tokens, force_json):
             payload["messages"][0]["content"] += "\nResponde en JSON."
     r = requests.post(
         "https://api.openai.com/v1/chat/completions",
-        headers={"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"},
+        headers={"Authorization": f"Bearer {_openai_key()}"},
         json=payload, timeout=120)
-    r.raise_for_status()
+    if r.status_code != 200:
+        raise RuntimeError(f"OpenAI HTTP {r.status_code}: {r.text[:300]}")
     text = r.json()["choices"][0]["message"]["content"]
     log.info("LLM: openai")
     return _clean(text, force_json)
