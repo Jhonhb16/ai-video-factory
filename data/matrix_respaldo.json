@@ -1,0 +1,88 @@
+{
+  "fuente": "respaldo_generico",
+  "actualizada": "estatica",
+  "resumen_ejecutivo": "En finanzas personales en español ganan los videos que abren con un dato impactante o un error común, desarrollan con 3 puntos concretos con números, y cierran con pregunta abierta. Duración óptima 90-120 segundos. Tono educativo, nunca promesas de riqueza.",
+  "patrones": {
+    "hooks": [
+      {
+        "tipo": "dato_impactante",
+        "descripcion": "Abrir con una estadística contraintuitiva que rompe la suposición del espectador",
+        "ejemplos_reales": [
+          "El 90% de las personas pierde dinero sin saberlo por este motivo",
+          "Tu dinero en el banco vale menos hoy que ayer, y te explico por qué"
+        ],
+        "frecuencia": "alta"
+      },
+      {
+        "tipo": "error_comun",
+        "descripcion": "Nombrar un error que la mayoría comete genera identificación inmediata",
+        "ejemplos_reales": [
+          "3 errores que te mantienen sin ahorros",
+          "El peor error con tu primer sueldo"
+        ],
+        "frecuencia": "alta"
+      },
+      {
+        "tipo": "negacion_mito",
+        "descripcion": "Negar una creencia popular detiene el scroll",
+        "ejemplos_reales": [
+          "Ahorrar en el banco NO es ahorrar",
+          "Las tarjetas de crédito no son el enemigo"
+        ],
+        "frecuencia": "media"
+      },
+      {
+        "tipo": "pregunta_directa",
+        "descripcion": "Pregunta que el espectador no puede responder con certeza",
+        "ejemplos_reales": [
+          "¿Sabes cuánto necesitas para tu fondo de emergencia?",
+          "¿Cuánto de tu sueldo desaparece sin que lo notes?"
+        ],
+        "frecuencia": "media"
+      }
+    ],
+    "temas_populares": [
+      {"tema": "errores comunes con el dinero", "engagement_promedio": "alto", "angulo_ganador": "lista de 3 errores con ejemplo numérico"},
+      {"tema": "inflación y pérdida de poder adquisitivo", "engagement_promedio": "alto", "angulo_ganador": "explicar con ejemplo cotidiano (café, alquiler)"},
+      {"tema": "fondo de emergencia", "engagement_promedio": "medio", "angulo_ganador": "fórmula concreta de cuánto guardar"},
+      {"tema": "interés compuesto", "engagement_promedio": "medio", "angulo_ganador": "tabla comparativa a 10 años"},
+      {"tema": "deuda buena vs deuda mala", "engagement_promedio": "medio", "angulo_ganador": "dos ejemplos reales contrastados"},
+      {"tema": "regla 50/30/20", "engagement_promedio": "medio", "angulo_ganador": "aplicada a un sueldo real"}
+    ],
+    "estructuras": [
+      {
+        "nombre": "hook-tension-3puntos-cta",
+        "abertura": "Hook de 3 segundos con dato o error",
+        "desarrollo": "Planteo del problema en 10s, luego 3 puntos numerados de 20-25s cada uno con ejemplo concreto",
+        "cierre": "Resumen de 1 línea + CTA",
+        "duracion_tipica_segundos": 110
+      },
+      {
+        "nombre": "mito-realidad",
+        "abertura": "Negación de creencia popular",
+        "desarrollo": "Por qué el mito existe, qué dice la realidad, qué hacer en su lugar",
+        "cierre": "Frase memorable + CTA",
+        "duracion_tipica_segundos": 90
+      }
+    ],
+    "frases_ganadoras": [
+      "y esto es lo que nadie te cuenta",
+      "vamos a verlo con números",
+      "guarda este video porque lo vas a necesitar",
+      "el error número uno es el más común",
+      "hagamos la cuenta"
+    ],
+    "palabras_clave": ["ahorro", "inflación", "interés", "deuda", "sueldo", "banco", "emergencia", "presupuesto"],
+    "duracion_optima_rango": [90, 120],
+    "ctas_efectivos": [
+      {"tipo": "pregunta_abierta", "ejemplo": "¿Cuál de estos errores cometes tú? Te leo en comentarios"},
+      {"tipo": "guardar", "ejemplo": "Guarda este video para cuando cobres tu próximo sueldo"},
+      {"tipo": "seguimiento_parte2", "ejemplo": "Sígueme para la parte 2 donde te doy la solución paso a paso"}
+    ]
+  },
+  "anti_patrones": {
+    "hooks_a_evitar": ["saludos largos tipo hola amigos bienvenidos", "empezar con el título del tema sin gancho"],
+    "temas_muertos": ["jerga financiera técnica sin explicar", "criptomonedas con promesas de rendimiento"],
+    "errores_comunes": ["videos sin un solo número concreto", "más de 3 ideas en un solo video", "cerrar sin CTA"]
+  }
+}

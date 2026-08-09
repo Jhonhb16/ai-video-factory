@@ -1,0 +1,52 @@
+proyecto:
+  nombre: "AI Video Factory - Dinero Inteligente"
+  nicho: "finanzas_personales"
+  idioma: "es"
+  duracion_objetivo_segundos: 120
+  videos_por_dia: 1
+
+contenido:
+  formato: "vertical_9_16"
+  resolucion: [1080, 1920]
+  fps: 30
+  estilo_visual: "cinematic_financial"
+  musica_fondo: true
+  volumen_musica: 0.15
+  elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM"
+  edge_voice: "es-MX-DaliaNeural"
+  disclosure_texto: "Contenido generado con IA"
+
+intelligence:
+  hashtags_descubrimiento:
+    - "finanzaspersonales"
+    - "educacionfinanciera"
+    - "ahorro"
+    - "inversiones"
+    - "dinero"
+    - "independenciafinanciera"
+  minimo_vistas: 50000
+  dias_atras: 90
+  videos_por_hashtag: 50
+  top_referentes_descubiertos: 3
+  referentes_instagram: []
+  whisper_model: "base"
+  whisper_device: "cpu"
+  score_minimo_publicar: 60
+  maximos_reintentos_reescritura: 2
+  dia_actualizacion_matrix: "lunes"
+  hora_actualizacion_matrix: "06:00"
+  apify_actor: "apify/instagram-scraper"
+
+publicacion:
+  activada: false
+  plataformas: ["facebook_videos", "instagram_reels"]
+  horario_publicacion: "18:00"
+  disclosure_ia: true
+
+costos:
+  presupuesto_mensual_usd: 50
+  alerta_costo_video_usd: 1.50
+
+logging:
+  nivel: "INFO"
+  archivo: "logs/pipeline.log"
