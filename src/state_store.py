@@ -6,6 +6,14 @@ import boto3
 from pathlib import Path
 from botocore.exceptions import ClientError
 
+# Normaliza secrets (quita espacios/saltos de linea pegados por error)
+for _k in ("GEMINI_API_KEY", "OPENAI_API_KEY", "APIFY_TOKEN", "REPLICATE_API_TOKEN",
+           "ELEVENLABS_API_KEY", "META_ACCESS_TOKEN", "META_PAGE_ID", "META_IG_USER_ID",
+           "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+           "R2_BUCKET", "R2_PUBLIC_BASE", "R2_STATE_BUCKET"):
+    if os.getenv(_k):
+        os.environ[_k] = os.environ[_k].strip()
+
 log = logging.getLogger("VideoFactory.StateStore")
 
 STATE_FILES = [
