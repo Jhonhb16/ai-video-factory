@@ -39,7 +39,7 @@ PROHIBIDO (suena a lectura): "en este video", "a continuacion", "en conclusion",
 "hoy vamos a hablar", "vamos a analizar", "de manera adecuada".
 El HOOK (primeros 3s) dispara: curiosidad / identificacion / experiencia vivida.
 ESTRUCTURA: hook (1-2 lineas) → tension (2-3 lineas) → 3 puntos (3-4 lineas c/u con numero)
-→ cierre (2 lineas) → CTA (1-2 lineas). TOTAL: 24-30 lineas, 260-340 palabras.
+→ cierre (2 lineas) → CTA (1-2 lineas). TOTAL: 26-30 lineas, 280-340 palabras. Cuenta tus lineas antes de responder: minimo 26.
 EJEMPLO DEL TONO EXACTO QUE QUIERO (copialo como referencia):
   "Llegas al 15 sin un peso."
   "Y no, no es mala suerte."
@@ -65,7 +65,9 @@ Responde UNICAMENTE JSON valido:
 
 SYSTEM_PROMPT_EXPAND = """Eres editor de guiones de reels de finanzas en español.
 Recibes un guion en lineas (beats) que quedo CORTO.
-Agregale 4-8 lineas NUEVAS de 5-12 palabras con ejemplos cotidianos y numeros.
+El total final DEBE quedar entre 260 y 340 palabras.
+Agrega las lineas NUEVAS necesarias (8-12 lineas de 5-12 palabras) con ejemplos
+cotidianos y numeros, hasta alcanzar ese total.
 NO cambies hook, CTA, titulo ni tema. Cero tono de ensayo.
 Devuelve el MISMO JSON completo con el arreglo "beats" ampliado.
 Responde UNICAMENTE JSON valido."""
@@ -109,13 +111,15 @@ def _validar_y_ajustar(g):
         return None
     palabras = sum(len(b.split()) for b in beats)
 
-    # Capa expansion si quedo corto
-    if palabras < 250:
-        log.info(f"Guion corto ({palabras} palabras). Pidiendo expansion en beats...")
+    # Expansion ITERATIVA hasta alcanzar rango (max 3 rondas)
+    intentos = 0
+    while palabras < 250 and intentos < 3:
+        intentos += 1
+        log.info(f"Guion corto ({palabras} palabras). Expansion {intentos}/3...")
         try:
             g2 = chat_json(
                 SYSTEM_PROMPT_EXPAND,
-                f"GUION ACTUAL ({palabras} palabras):\n{json.dumps(g, ensure_ascii=False)}",
+                f"TOTAL OBJETIVO: 260-340 palabras. ACTUAL: {palabras}.\nGUION:\n{json.dumps(g, ensure_ascii=False)}",
                 temperature=0.7, max_tokens=8000)
             if isinstance(g2, dict):
                 g = {**g, **g2}
@@ -134,8 +138,8 @@ def _validar_y_ajustar(g):
     if any(p.lower() in texto_plano for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura/ensayo")
         return None
-    if not (230 <= palabras <= 370):
-        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (230-370)")
+    if not (210 <= palabras <= 370):
+        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (210-370)")
         return None
     largos = [b for b in beats if len(b.split()) > 16]
     if len(largos) > 2:
