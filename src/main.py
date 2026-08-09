@@ -92,6 +92,14 @@ def run(draft=False, skip_intelligence=False):
         from src.image_generator import generate_images
         generate_images(resultado["data"])
 
+    def paso_media():
+        from src.stock_media import download_media
+        g = resultado["data"]["guion"] if resultado["data"] else None
+        if g is None:
+            from src.utils import load_script
+            g = load_script()
+        download_media(g)
+
     def paso_video():
         from src.video_assembler import assemble_video
         assemble_video()
@@ -119,6 +127,7 @@ def run(draft=False, skip_intelligence=False):
         ("script", "Generando y simulando guiones", paso_guion),
         ("voice", "Generando voz", paso_voz),
         ("images", "Generando imagenes", paso_imagenes),
+        ("media", "Descargando b-roll real y musica", paso_media),
         ("video", "Ensamblando video", paso_video),
         ("disclose", "Aplicando etiqueta IA", paso_disclosure),
         ("dashboard", "Publicando dashboard", paso_dashboard),

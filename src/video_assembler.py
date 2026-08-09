@@ -1,37 +1,33 @@
-"""Ensambla el video: corte cada 3s + camaras alternadas + musica. FFmpeg puro."""
+"""Ensamblador v3: b-roll real cada 3s (o imagenes) + subtitulos ES + musica."""
+import re
 import logging
 import shutil
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
-from src.utils import load_config, audio_path, get_duration, run_cmd, today
+from src.utils import load_config, load_script, audio_path, get_duration, run_cmd, today
 
 log = logging.getLogger("VideoFactory.Assembler")
-
 IMG_DIR = Path("output/images")
+MEDIA_DIR = Path("output/media")
 FINAL_DIR = Path("output/final")
 
-# Camaras alternadas: (ancla_x, ancla_y, direccion)
-CAMARAS = [
-    (0.5, 0.5, "in"), (0.3, 0.3, "out"), (0.7, 0.7, "in"),
-    (0.5, 0.25, "out"), (0.25, 0.6, "in"), (0.75, 0.4, "out"),
-]
+CAMARAS = [(0.5, 0.5, "in"), (0.3, 0.3, "out"), (0.7, 0.7, "in"),
+           (0.5, 0.25, "out"), (0.25, 0.6, "in"), (0.75, 0.4, "out")]
 
 
 def assemble_video():
     cfg = load_config().get("contenido", {})
     fps = int(cfg.get("fps", 30))
-    music_on = bool(cfg.get("musica_fondo", True))
     music_vol = float(cfg.get("volumen_musica", 0.15))
-
     audio = audio_path()
     if not audio.exists():
         raise FileNotFoundError(f"No existe {audio}.")
     audio_dur = get_duration(audio)
 
-    images = sorted(IMG_DIR.glob("img_*.png"))
-    if not images:
-        raise FileNotFoundError("No hay imagenes en output/images/.")
-    n = len(images)
+    clips = sorted(MEDIA_DIR.glob("clip_*.mp4")) if MEDIA_DIR.exists() else []
+    images = sorted(IMG_DIR.glob("img_*.png")) if IMG_DIR.exists() else []
+    if not clips and not images:
+        raise FileNotFoundError("No hay clips ni imagenes.")
 
     total_shots = max(8, round(audio_dur / 3.0))
     shot_dur = audio_dur / total_shots
@@ -41,14 +37,23 @@ def assemble_video():
         shutil.rmtree(seg_dir)
     seg_dir.mkdir(parents=True)
 
-    log.info(f"Renderizando {total_shots} planos de ~{shot_dur:.1f}s (corte cada 3s)...")
+    log.info(f"{total_shots} planos de ~{shot_dur:.1f}s "
+             f"({'b-roll REAL' if clips else 'imagenes'})...")
+
+    jobs = []
+    if clips:
+        durs = {c: get_duration(c) for c in clips}
+        for s in range(total_shots):
+            clip = clips[s % len(clips)]
+            cd = durs[clip]
+            off = min((s // len(clips)) * shot_dur, max(0.0, cd - shot_dur - 0.3))
+            jobs.append(("clip", clip, off, s))
+    else:
+        for s in range(total_shots):
+            jobs.append(("img", images[s % len(images)], 0, s))
+
     with ThreadPoolExecutor(max_workers=4) as ex:
-        list(ex.map(
-            lambda s: _render_shot(
-                images[s % n], shot_dur, fps,
-                seg_dir / f"seg_{s:03d}.mp4", CAMARAS[s % len(CAMARAS)]),
-            range(total_shots)
-        ))
+        list(ex.map(lambda j: _render(j, shot_dur, fps, seg_dir), jobs))
 
     segments = [seg_dir / f"seg_{s:03d}.mp4" for s in range(total_shots)]
     for sgm in segments:
@@ -56,13 +61,15 @@ def assemble_video():
             raise RuntimeError(f"Falta segmento {sgm}")
 
     music = None
-    if music_on:
-        tracks = sorted(Path("assets/music").glob("*.mp3")) if Path("assets/music").exists() else []
-        if tracks:
-            music = tracks[0]
-            log.info(f"Musica de fondo: {music.name}")
-        else:
-            log.warning("Sin musica en assets/music/. Sube un mp3 para edicion profesional.")
+    tracks = sorted(Path("assets/music").glob("*.mp3")) if Path("assets/music").exists() else []
+    if tracks:
+        music = tracks[0]
+    elif MEDIA_DIR.exists() and (MEDIA_DIR / "musica.mp3").exists():
+        music = MEDIA_DIR / "musica.mp3"
+    if not music:
+        log.warning("Sin musica disponible.")
+
+    _generar_subtitulos(audio_dur)
 
     FINAL_DIR.mkdir(parents=True, exist_ok=True)
     raw = FINAL_DIR / "video_raw.mp4"
@@ -72,21 +79,69 @@ def assemble_video():
     return raw
 
 
-def _render_shot(img, dur, fps, out, cam):
-    frames = max(1, round(dur * fps))
-    ax, ay, direction = cam
-    if direction == "in":
-        z = f"min(zoom+{0.15 / frames:.6f},1.15)"
+def _render(job, dur, fps, seg_dir):
+    kind, src, off, idx = job
+    out = seg_dir / f"seg_{idx:03d}.mp4"
+    if kind == "clip":
+        cmd = ["ffmpeg", "-y", "-stream_loop", "1", "-ss", f"{off:.2f}",
+               "-i", str(src), "-t", f"{dur:.2f}",
+               "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
+               "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast",
+               "-crf", "18", "-pix_fmt", "yuv420p", "-an", str(out)]
+        run_cmd(cmd, timeout=180)
     else:
-        z = f"if(eq(on,1),1.2,max(zoom-{0.2 / frames:.6f},1.0))"
-    vf = (f"zoompan=z='{z}'"
-          f":x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
-          f":d={frames}:s=1080x1920:fps={fps}")
-    cmd = ["ffmpeg", "-y", "-i", str(img), "-vf", vf,
-           "-frames:v", str(frames), "-r", str(fps),
-           "-c:v", "libx264", "-preset", "veryfast", "-crf", "17",
-           "-pix_fmt", "yuv420p", str(out)]
-    run_cmd(cmd, timeout=300)
+        frames = max(1, round(dur * fps))
+        ax, ay, direction = CAMARAS[idx % len(CAMARAS)]
+        z = (f"min(zoom+{0.15 / frames:.6f},1.15)" if direction == "in"
+             else f"if(eq(on,1),1.2,max(zoom-{0.2 / frames:.6f},1.0))")
+        vf = (f"zoompan=z='{z}':x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
+              f":d={frames}:s=1080x1920:fps={fps}")
+        cmd = ["ffmpeg", "-y", "-i", str(src), "-vf", vf,
+               "-frames:v", str(frames), "-r", str(fps),
+               "-c:v", "libx264", "-preset", "veryfast", "-crf", "17",
+               "-pix_fmt", "yuv420p", str(out)]
+        run_cmd(cmd, timeout=300)
+
+
+def _ts(s):
+    h = int(s // 3600); m = int((s % 3600) // 60); sec = s % 60
+    return f"{h}:{m:02d}:{sec:05.2f}"
+
+
+def _generar_subtitulos(audio_dur):
+    try:
+        guion = load_script()
+    except Exception:
+        return
+    textos = []
+    if guion.get("hook"):
+        textos.append(guion["hook"])
+    for f in re.split(r"(?<=[.!?])\s+", guion.get("guion", "")):
+        w = f.split()
+        for i in range(0, len(w), 9):
+            textos.append(" ".join(w[i:i + 9]))
+    if guion.get("cta"):
+        textos.append(guion["cta"])
+    pesos = [max(1, len(t.split())) for t in textos]
+    total = sum(pesos)
+
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "[Script Info]", "ScriptType: v4.00+",
+        "PlayResX: 1080", "PlayResY: 1920",
+        "[V4+ Styles]",
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
+        "Style: Default,DejaVu Sans,60,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,0,2,40,40,160,1",
+        "[Events]",
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
+    ]
+    t = 0.0
+    for txt, w in zip(textos, pesos):
+        d = audio_dur * w / total
+        lines.append(f"Dialogue: 0,{_ts(t)},{_ts(t + d)},Default,,0,0,0,,{txt}")
+        t += d
+    (MEDIA_DIR / "subs.ass").write_text("\n".join(lines), encoding="utf-8")
+    log.info(f"Subtitulos generados: {len(textos)} lineas")
 
 
 def _final_encode(segments, audio, music, music_vol, out):
@@ -101,9 +156,16 @@ def _final_encode(segments, audio, music, music_vol, out):
     concat_in = "".join(f"[{i}:v]" for i in range(n))
     fc = f"{concat_in}concat=n={n}:v=1:a=0[vcat]"
 
+    sub = MEDIA_DIR / "subs.ass"
+    if sub.exists():
+        fc += f";[vcat]ass={sub}[vsub]"
+        vmap = "[vsub]"
+    else:
+        vmap = "[vcat]"
+
     if music:
         fc += (f";[{n}:a]volume=1.8[narr]"
-               f";[{n+1}:a]volume={music_vol*2:.3f}[mus]"
+               f";[{n + 1}:a]volume={music_vol * 2:.3f}[mus]"
                f";[narr][mus]amix=inputs=2:duration=first:dropout_transition=0[aout]")
         amap = "[aout]"
     else:
@@ -111,7 +173,7 @@ def _final_encode(segments, audio, music, music_vol, out):
 
     cmd = ["ffmpeg", "-y"] + inputs + [
         "-filter_complex", fc,
-        "-map", "[vcat]", "-map", amap,
+        "-map", vmap, "-map", amap,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart",

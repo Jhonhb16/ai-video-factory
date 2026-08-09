@@ -42,7 +42,7 @@ Responde UNICAMENTE JSON valido (un solo objeto):
   "hook": "maximo 15 palabras",
   "guion": "texto completo 300-340 palabras",
   "cta": "maximo 20 palabras",
-  "escenas": [{"prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
+  "escenas": [{"keyword": "palabras en ingles para buscar video de archivo, ej: counting cash money", "prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
   "hashtags": ["maximo 5"]
 }"""
 
