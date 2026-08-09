@@ -1,4 +1,4 @@
-"""Genera guiones DESDE la matrix (uno por llamada) + registro."""
+"""Genera guiones DESDE la matrix + expansion automatica + registro."""
 import csv
 import json
 import hashlib
@@ -17,34 +17,45 @@ PROHIBIDAS = [
 ]
 
 SYSTEM_PROMPT = """Eres un guionista de contenido viral de finanzas personales en español.
-ESCRIBES COMO SE HABLA: coloquial, directo, como contándoselo a un amigo en una junta.
-CERO TECNICISMOS: si una palabra es compleja, la explicas con cosas de la vida diaria
-(cafe, super, renta, la quincena, el cel).
+ESCRIBES COMO SE HABLA: coloquial, directo, como contándoselo a un amigo.
+CERO TECNICISMOS: lo complejo se explica con cafe, super, renta, la quincena.
 Recibes una MATRIX DE VIRALIDAD con patrones reales. Escribe UN guion que los aplique.
-El HOOK (primeros 3 segundos) debe disparar UNO de estos 3 gatillos:
+El HOOK (primeros 3 segundos) debe disparar UNO de estos gatillos:
 - Curiosidad: "hay un agujero en tu quincena y ni lo notas"
 - Identificacion: "si llegas al 15 sin un peso, esto es para ti"
 - Experiencia vivida: "yo hice esto por años y me costo carisimo"
-Reglas estrictas:
-- Guion entre 280 y 340 palabras (video de 120 segundos)
-- Frases cortas. Ritmo. Habla de "tu", nunca de "usted"
-- NUNCA promesas de riqueza o rendimientos
-- 20 escenas visuales
-- Escapa correctamente las comillas dobles dentro de los textos
+ESTRUCTURA OBLIGATORIA CON PRESUPUESTO DE PALABRAS:
+* Hook: 15-20 palabras
+* Planteo del problema: 40-50 palabras
+* Punto 1: 60-70 palabras con un numero o ejemplo cotidiano
+* Punto 2: 60-70 palabras con un numero o ejemplo cotidiano
+* Punto 3: 60-70 palabras con un numero o ejemplo cotidiano
+* Cierre + CTA: 40-50 palabras
+TOTAL: 300-340 palabras. Cuenta y NO entregues menos de 280.
+Reglas: frases cortas, habla de "tu", NUNCA promesas de riqueza,
+20 escenas visuales, escapa comillas dobles dentro de textos.
 Responde UNICAMENTE JSON valido (un solo objeto):
 {
   "titulo": "maximo 8 palabras",
   "tipo_hook": "curiosidad / identificacion / experiencia_vivida / negacion_mito",
   "estructura_usada": "nombre de estructura de la matrix",
   "hook": "maximo 15 palabras",
-  "guion": "texto completo 280-340 palabras, coloquial, sin tecnicismos",
+  "guion": "texto completo 300-340 palabras",
   "cta": "maximo 20 palabras",
   "escenas": [{"prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
   "hashtags": ["maximo 5"]
 }"""
 
+SYSTEM_PROMPT_EXPAND = """Eres un editor de guiones de finanzas en español coloquial.
+Recibes un guion que quedo CORTO. Reescribelo AMPLIADO a 300-340 palabras.
+NO cambies el hook, el CTA, el titulo ni el tema.
+Agrega ejemplos cotidianos con numeros reales (cafe, super, renta, la quincena).
+Frases cortas, ritmo, cero tecnicismos.
+Devuelve el MISMO objeto JSON completo (todos los campos) con el "guion" ampliado.
+Responde UNICAMENTE JSON valido."""
 
-def generar_guiones_desde_matrix(n=5, tema_semana=None):
+
+def generar_guiones_desde_matrix(n=3, tema_semana=None):
     matrix = cargar_matrix()
     matrix_txt = json.dumps(matrix, ensure_ascii=False)
     tema_txt = f"Tema sugerido: {tema_semana}" if tema_semana else "Elige tu un tema de finanzas personales"
@@ -54,25 +65,48 @@ def generar_guiones_desde_matrix(n=5, tema_semana=None):
         try:
             g = chat_json(
                 SYSTEM_PROMPT,
-                f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\nEscribe el guion #{i+1} de hoy. Usa una combinacion de hook y estructura distinta a la de un video tipico. JSON de UN solo guion:",
+                f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\nEscribe el guion #{i+1} de hoy con combinacion distinta de hook/estructura. JSON de UN solo guion:",
                 temperature=0.85, max_tokens=8000)
         except Exception as e:
-            log.warning(f"Guion #{i+1} fallo al generar/parsear: {e}")
+            log.warning(f"Guion #{i+1} fallo al generar: {e}")
             continue
-
-        texto = (g.get("hook", "") + " " + g.get("guion", "") + " " + g.get("titulo", "")).lower()
-        if any(p.lower() in texto for p in PROHIBIDAS):
-            log.warning(f"Guion '{g.get('titulo')}' descartado: frase prohibida")
-            continue
-        palabras = len(g.get("guion", "").split())
-        if not (250 <= palabras <= 370):
-            log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango")
-            continue
-        g["_palabras"] = palabras
-        validos.append(g)
+        g = _validar_y_ajustar(g)
+        if g:
+            validos.append(g)
 
     log.info(f"{len(validos)}/{n} guiones validos generados desde la matrix")
     return validos
+
+
+def _validar_y_ajustar(g):
+    if not isinstance(g, dict) or not g.get("guion"):
+        return None
+    palabras = len(g["guion"].split())
+
+    # Capa 2: si llego corto, pedir expansion UNA vez
+    if palabras < 250:
+        log.info(f"Guion corto ({palabras} palabras). Pidiendo expansion a 300-340...")
+        try:
+            g2 = chat_json(
+                SYSTEM_PROMPT_EXPAND,
+                f"GUION ACTUAL ({palabras} palabras):\n{json.dumps(g, ensure_ascii=False)}",
+                temperature=0.7, max_tokens=8000)
+            if isinstance(g2, dict) and g2.get("guion"):
+                g = {**g, **g2}
+        except Exception as e:
+            log.warning(f"Expansion fallo: {e}")
+        palabras = len(g.get("guion", "").split())
+
+    # Capa 3: filtros finales con rango tolerante
+    texto = (g.get("hook", "") + " " + g.get("guion", "") + " " + g.get("titulo", "")).lower()
+    if any(p.lower() in texto for p in PROHIBIDAS):
+        log.warning(f"Guion '{g.get('titulo')}' descartado: frase prohibida")
+        return None
+    if not (230 <= palabras <= 370):
+        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (230-370)")
+        return None
+    g["_palabras"] = palabras
+    return g
 
 
 def get_next_topic():
