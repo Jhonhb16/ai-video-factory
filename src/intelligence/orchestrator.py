@@ -89,8 +89,20 @@ def producir_guion_del_dia(config):
         log.error("No se generaron guiones validos")
         return None
 
+    from .showrunner import revisar_paquete
+    from .script_generator import aplicar_cambios
+    log.info("SHOWRUNNER revisando el paquete...")
+    aprobados = []
+    for g in guiones:
+        r = revisar_paquete(g)
+        if r.get("veredicto") == "REWRITE" and r.get("cambios"):
+            g2 = aplicar_cambios(g, r["cambios"])
+            if g2:
+                g = g2
+        aprobados.append(g)
+
     log.info("Simulando guiones contra la matrix...")
-    mejor = seleccionar_mejor(guiones, config)
+    mejor = seleccionar_mejor(aprobados, config)
     if mejor:
         mejor["guion"]["_tema"] = tema or mejor["guion"].get("titulo", "")
         log.info(f"Guion del dia: '{mejor['guion'].get('titulo')}' (score {mejor['score']})")

@@ -45,7 +45,7 @@ def generate_voice(data=None):
 
 def _build_text(script):
     partes = [script.get("hook", ""), script.get("guion", ""), script.get("cta", "")]
-    return ". ".join(p.strip() for p in partes if p.strip())
+    return "\n".join(p.strip() for p in partes if p.strip())
 
 
 def _elevenlabs(texto, out, voice_id):

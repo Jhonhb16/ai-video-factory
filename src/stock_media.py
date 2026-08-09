@@ -78,5 +78,26 @@ def download_media(guion):
         except Exception as e:
             log.warning(f"Musica fallo: {e}")
 
+    descargar_sfx()
     log.info(f"{ok_clips} clips de b-roll listos")
     return ok_clips > 0
+
+
+def descargar_sfx():
+    for name, q in (("sfx_pop.mp3", "pop sound effect"), ("sfx_whoosh.mp3", "whoosh transition")):
+        dest = MEDIA_DIR / name
+        if dest.exists():
+            continue
+        try:
+            r = requests.get("https://pixabay.com/api/audio/", params={
+                "key": _key(), "q": q, "per_page": 2}, timeout=30)
+            for h in r.json().get("hits", []):
+                url = h.get("audio")
+                if url:
+                    d = requests.get(url, timeout=120)
+                    if d.status_code == 200 and len(d.content) > 5000:
+                        dest.write_bytes(d.content)
+                        log.info(f"SFX listo: {name}")
+                        break
+        except Exception as e:
+            log.warning(f"SFX {name} fallo: {e}")
