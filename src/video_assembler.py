@@ -1,4 +1,4 @@
-"""Ensamblador v3: b-roll real cada 3s (o imagenes) + subtitulos ES + musica."""
+"""Ensamblador v4: b-roll real + MASCOTA ANIMADA + subtitulos ES + musica."""
 import re
 import logging
 import shutil
@@ -9,10 +9,19 @@ from src.utils import load_config, load_script, audio_path, get_duration, run_cm
 log = logging.getLogger("VideoFactory.Assembler")
 IMG_DIR = Path("output/images")
 MEDIA_DIR = Path("output/media")
+MASCOT_DIR = MEDIA_DIR / "mascot"
 FINAL_DIR = Path("output/final")
 
 CAMARAS = [(0.5, 0.5, "in"), (0.3, 0.3, "out"), (0.7, 0.7, "in"),
            (0.5, 0.25, "out"), (0.25, 0.6, "in"), (0.75, 0.4, "out")]
+
+
+def _pose_for(s, total):
+    if s < 2:
+        return "talk"
+    if s >= total - 2:
+        return "celebrate"
+    return ["talk", "explain", "point", "think"][s % 4]
 
 
 def assemble_video():
@@ -38,7 +47,7 @@ def assemble_video():
     seg_dir.mkdir(parents=True)
 
     log.info(f"{total_shots} planos de ~{shot_dur:.1f}s "
-             f"({'b-roll REAL' if clips else 'imagenes'})...")
+             f"({'b-roll REAL' if clips else 'imagenes'} + mascota)...")
 
     jobs = []
     if clips:
@@ -47,10 +56,10 @@ def assemble_video():
             clip = clips[s % len(clips)]
             cd = durs[clip]
             off = min((s // len(clips)) * shot_dur, max(0.0, cd - shot_dur - 0.3))
-            jobs.append(("clip", clip, off, s))
+            jobs.append(("clip", clip, off, s, _pose_for(s, total_shots)))
     else:
         for s in range(total_shots):
-            jobs.append(("img", images[s % len(images)], 0, s))
+            jobs.append(("img", images[s % len(images)], 0, s, _pose_for(s, total_shots)))
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         list(ex.map(lambda j: _render(j, shot_dur, fps, seg_dir), jobs))
@@ -80,27 +89,39 @@ def assemble_video():
 
 
 def _render(job, dur, fps, seg_dir):
-    kind, src, off, idx = job
+    kind, src, off, idx, pose = job
     out = seg_dir / f"seg_{idx:03d}.mp4"
+    mascot = MASCOT_DIR / f"{pose}.png"
+    has_m = mascot.exists()
+
     if kind == "clip":
-        cmd = ["ffmpeg", "-y", "-stream_loop", "1", "-ss", f"{off:.2f}",
-               "-i", str(src), "-t", f"{dur:.2f}",
-               "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1",
-               "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast",
-               "-crf", "18", "-pix_fmt", "yuv420p", "-an", str(out)]
-        run_cmd(cmd, timeout=180)
+        base = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
+        inputs = ["-stream_loop", "1", "-ss", f"{off:.2f}", "-i", str(src)]
+        tflag = ["-t", f"{dur:.2f}"]
     else:
         frames = max(1, round(dur * fps))
         ax, ay, direction = CAMARAS[idx % len(CAMARAS)]
         z = (f"min(zoom+{0.15 / frames:.6f},1.15)" if direction == "in"
              else f"if(eq(on,1),1.2,max(zoom-{0.2 / frames:.6f},1.0))")
-        vf = (f"zoompan=z='{z}':x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
-              f":d={frames}:s=1080x1920:fps={fps}")
-        cmd = ["ffmpeg", "-y", "-i", str(src), "-vf", vf,
-               "-frames:v", str(frames), "-r", str(fps),
-               "-c:v", "libx264", "-preset", "veryfast", "-crf", "17",
-               "-pix_fmt", "yuv420p", str(out)]
-        run_cmd(cmd, timeout=300)
+        base = (f"zoompan=z='{z}':x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
+                f":d={frames}:s=1080x1920:fps={fps}")
+        inputs = ["-i", str(src)]
+        tflag = ["-frames:v", str(frames)]
+
+    if has_m:
+        inputs += ["-i", str(mascot)]
+        fc = (f"[0:v]{base}[b];[1:v]scale=-2:620[m];"
+              f"[b][m]overlay=x=W-w-30:y=H-h-170+8*sin(2*PI*t/1.2)[v]")
+        vmap = "[v]"
+    else:
+        fc = f"[0:v]{base}[v]"
+        vmap = "[v]"
+
+    cmd = ["ffmpeg", "-y"] + inputs + tflag + [
+        "-filter_complex", fc, "-map", vmap,
+        "-r", str(fps), "-c:v", "libx264", "-preset", "veryfast",
+        "-crf", "18", "-pix_fmt", "yuv420p", "-an", str(out)]
+    run_cmd(cmd, timeout=300)
 
 
 def _ts(s):

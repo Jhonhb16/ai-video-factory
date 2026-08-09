@@ -99,6 +99,8 @@ def run(draft=False, skip_intelligence=False):
             from src.utils import load_script
             g = load_script()
         download_media(g)
+        from src.mascot import generar_mascotas
+        generar_mascotas()
 
     def paso_video():
         from src.video_assembler import assemble_video

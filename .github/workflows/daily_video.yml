@@ -31,6 +31,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Cache modelo rembg
+        uses: actions/cache@v4
+        with:
+          path: ~/.u2net
+          key: u2net-v1
       - name: Cache modelo Whisper
         uses: actions/cache@v4
         with:
