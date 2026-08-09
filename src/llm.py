@@ -1,4 +1,4 @@
-"""Adaptador LLM: Gemini con salto de modelos + respaldo OpenAI. Solo REST."""
+"""Adaptador LLM: Gemini (3 modelos) + respaldo OpenAI. Solo REST."""
 import os
 import json
 import time
@@ -7,8 +7,8 @@ import requests
 
 log = logging.getLogger("VideoFactory.LLM")
 
-# Orden por cuota gratuita: 2.0 flash suele tener mas cuota diaria que 2.5
-GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
+# Orden por cuota gratuita: lite tiene la cuota mas alta
+GEMINI_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"]
 
 
 def _gemini_key():
@@ -28,7 +28,6 @@ def chat_json(system, user, temperature=0.7, max_tokens=4000):
 
 
 def _repair_json(text):
-    """Salva JSON truncado: cierra comillas/corchetes o corta en el ultimo objeto completo."""
     t = text.rstrip()
     for extra in ('"', '"}', '"}]', '"}]}', '}', ']}', ']]'):
         try:
@@ -71,6 +70,7 @@ def chat_text(system, user, temperature=0.7, max_tokens=4000, force_json=False):
 def _gemini(system, user, temperature, max_tokens, force_json):
     key = _gemini_key()
     last_err = None
+    saw_429 = False
     for model in GEMINI_MODELS:
         gen_cfg = {"temperature": temperature, "maxOutputTokens": max_tokens}
         if force_json:
@@ -88,9 +88,11 @@ def _gemini(system, user, temperature, max_tokens, force_json):
             payload["generationConfig"].pop("thinkingConfig", None)
             r = requests.post(url, json=payload, timeout=120)
         if r.status_code == 404:
-            last_err = RuntimeError(f"modelo {model} no disponible")
+            log.warning(f"Modelo {model} no disponible; probando siguiente.")
+            last_err = last_err or RuntimeError(f"modelo {model} no disponible")
             continue
         if r.status_code == 429:
+            saw_429 = True
             last_err = RuntimeError(f"Gemini {model} 429 cuota agotada")
             continue
         if r.status_code != 200:
@@ -102,6 +104,9 @@ def _gemini(system, user, temperature, max_tokens, force_json):
             raise RuntimeError(f"Gemini {model} respuesta vacia: {json.dumps(data)[:300]}")
         log.info(f"LLM: gemini/{model}")
         return _clean(text, force_json)
+    # FIX: si algun modelo dio 429, el error final debe decirlo para activar OpenAI
+    if saw_429:
+        raise RuntimeError("Gemini 429: cuota agotada en todos los modelos")
     raise last_err
 
 

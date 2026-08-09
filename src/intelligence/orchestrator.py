@@ -82,7 +82,7 @@ def icfg_guiones(config):
 
 
 def producir_guion_del_dia(config):
-    log.info("Generando 5 guiones desde la matrix...")
+    log.info(f"Generando guiones desde la matrix (n={icfg_guiones(config)})...")
     tema = get_next_topic()
     guiones = generar_guiones_desde_matrix(n=icfg_guiones(config), tema_semana=tema)
     if not guiones:
