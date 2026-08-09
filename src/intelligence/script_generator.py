@@ -1,4 +1,4 @@
-"""Genera guiones DESDE la matrix (uno por llamada LLM) + registro."""
+"""Genera guiones DESDE la matrix (uno por llamada) + registro."""
 import csv
 import json
 import hashlib
@@ -16,21 +16,28 @@ PROHIBIDAS = [
     "libertad financiera en", "secreto que los bancos",
 ]
 
-SYSTEM_PROMPT = """Eres un guionista experto en contenido viral de finanzas personales en español.
-Recibes una MATRIX DE VIRALIDAD con patrones reales. Escribe UN guion que APLIQUE esos patrones.
+SYSTEM_PROMPT = """Eres un guionista de contenido viral de finanzas personales en español.
+ESCRIBES COMO SE HABLA: coloquial, directo, como contándoselo a un amigo en una junta.
+CERO TECNICISMOS: si una palabra es compleja, la explicas con cosas de la vida diaria
+(cafe, super, renta, la quincena, el cel).
+Recibes una MATRIX DE VIRALIDAD con patrones reales. Escribe UN guion que los aplique.
+El HOOK (primeros 3 segundos) debe disparar UNO de estos 3 gatillos:
+- Curiosidad: "hay un agujero en tu quincena y ni lo notas"
+- Identificacion: "si llegas al 15 sin un peso, esto es para ti"
+- Experiencia vivida: "yo hice esto por años y me costo carisimo"
 Reglas estrictas:
 - Guion entre 280 y 340 palabras (video de 120 segundos)
-- Tono educativo, NUNCA promesas de riqueza o rendimientos
-- Hook de maximo 15 palabras que detenga el scroll
-- 12 escenas visuales
+- Frases cortas. Ritmo. Habla de "tu", nunca de "usted"
+- NUNCA promesas de riqueza o rendimientos
+- 20 escenas visuales
 - Escapa correctamente las comillas dobles dentro de los textos
 Responde UNICAMENTE JSON valido (un solo objeto):
 {
   "titulo": "maximo 8 palabras",
-  "tipo_hook": "tipo usado de la matrix",
+  "tipo_hook": "curiosidad / identificacion / experiencia_vivida / negacion_mito",
   "estructura_usada": "nombre de estructura de la matrix",
   "hook": "maximo 15 palabras",
-  "guion": "texto completo 280-340 palabras",
+  "guion": "texto completo 280-340 palabras, coloquial, sin tecnicismos",
   "cta": "maximo 20 palabras",
   "escenas": [{"prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
   "hashtags": ["maximo 5"]

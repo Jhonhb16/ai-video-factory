@@ -1,53 +1,77 @@
 {
   "fuente": "respaldo_generico",
   "actualizada": "estatica",
-  "resumen_ejecutivo": "En finanzas personales en español ganan los videos que abren con un dato impactante o un error común, desarrollan con 3 puntos concretos con números, y cierran con pregunta abierta. Duración óptima 90-120 segundos. Tono educativo, nunca promesas de riqueza.",
+  "resumen_ejecutivo": "En finanzas en español ganan los videos que abren con curiosidad ('hay algo oculto') o identificacion ('soy yo'), hablan como un amigo sin tecnicismos, explican con cosas cotidianas, desarrollan con 3 puntos con numeros reales y cierran con pregunta abierta. Corte de camara cada 3 segundos. Duracion 90-120s.",
   "patrones": {
     "hooks": [
       {
-        "tipo": "dato_impactante",
-        "descripcion": "Abrir con una estadística contraintuitiva que rompe la suposición del espectador",
+        "tipo": "curiosidad_gap",
+        "descripcion": "Revela que hay un problema oculto o un secreto sin revelarlo, para que se queden",
         "ejemplos_reales": [
-          "El 90% de las personas pierde dinero sin saberlo por este motivo",
-          "Tu dinero en el banco vale menos hoy que ayer, y te explico por qué"
+          "Hay un agujero silencioso en tu quincena y apuesto a que lo tienes",
+          "Al banco le encanta que hagas esto"
         ],
         "frecuencia": "alta"
       },
       {
-        "tipo": "error_comun",
-        "descripcion": "Nombrar un error que la mayoría comete genera identificación inmediata",
+        "tipo": "identificacion",
+        "descripcion": "Describe una situacion que el espectador vivio, para que diga 'soy yo'",
         "ejemplos_reales": [
-          "3 errores que te mantienen sin ahorros",
-          "El peor error con tu primer sueldo"
+          "Si llegas al 15 sin un peso, esto es para ti",
+          "Cobras, le pagas a todos y te quedas en cero"
         ],
         "frecuencia": "alta"
       },
       {
-        "tipo": "negacion_mito",
-        "descripcion": "Negar una creencia popular detiene el scroll",
+        "tipo": "experiencia_vivida",
+        "descripcion": "Arranca con un error o leccion personal real",
         "ejemplos_reales": [
-          "Ahorrar en el banco NO es ahorrar",
-          "Las tarjetas de crédito no son el enemigo"
+          "Yo ahorraba mal y nadie me lo dijo por 5 anos",
+          "Preste dinero a un amigo y perdi los dos"
         ],
         "frecuencia": "media"
       },
       {
-        "tipo": "pregunta_directa",
-        "descripcion": "Pregunta que el espectador no puede responder con certeza",
+        "tipo": "negacion_mito",
+        "descripcion": "Rompe una creencia popular en lenguaje coloquial",
         "ejemplos_reales": [
-          "¿Sabes cuánto necesitas para tu fondo de emergencia?",
-          "¿Cuánto de tu sueldo desaparece sin que lo notes?"
+          "Ahorrar NO es cosa de ricos",
+          "Dejar el cafe no te va a hacer rico"
         ],
         "frecuencia": "media"
       }
     ],
     "temas_populares": [
-      {"tema": "errores comunes con el dinero", "engagement_promedio": "alto", "angulo_ganador": "lista de 3 errores con ejemplo numérico"},
-      {"tema": "inflación y pérdida de poder adquisitivo", "engagement_promedio": "alto", "angulo_ganador": "explicar con ejemplo cotidiano (café, alquiler)"},
-      {"tema": "fondo de emergencia", "engagement_promedio": "medio", "angulo_ganador": "fórmula concreta de cuánto guardar"},
-      {"tema": "interés compuesto", "engagement_promedio": "medio", "angulo_ganador": "tabla comparativa a 10 años"},
-      {"tema": "deuda buena vs deuda mala", "engagement_promedio": "medio", "angulo_ganador": "dos ejemplos reales contrastados"},
-      {"tema": "regla 50/30/20", "engagement_promedio": "medio", "angulo_ganador": "aplicada a un sueldo real"}
+      {
+        "tema": "errores comunes con el dinero",
+        "engagement_promedio": "alto",
+        "angulo_ganador": "lista de 3 errores con ejemplo numérico"
+      },
+      {
+        "tema": "inflación y pérdida de poder adquisitivo",
+        "engagement_promedio": "alto",
+        "angulo_ganador": "explicar con ejemplo cotidiano (café, alquiler)"
+      },
+      {
+        "tema": "fondo de emergencia",
+        "engagement_promedio": "medio",
+        "angulo_ganador": "fórmula concreta de cuánto guardar"
+      },
+      {
+        "tema": "interés compuesto",
+        "engagement_promedio": "medio",
+        "angulo_ganador": "tabla comparativa a 10 años"
+      },
+      {
+        "tema": "deuda buena vs deuda mala",
+        "engagement_promedio": "medio",
+        "angulo_ganador": "dos ejemplos reales contrastados"
+      },
+      {
+        "tema": "regla 50/30/20",
+        "engagement_promedio": "medio",
+        "angulo_ganador": "aplicada a un sueldo real"
+      }
     ],
     "estructuras": [
       {
@@ -66,23 +90,55 @@
       }
     ],
     "frases_ganadoras": [
-      "y esto es lo que nadie te cuenta",
-      "vamos a verlo con números",
-      "guarda este video porque lo vas a necesitar",
-      "el error número uno es el más común",
-      "hagamos la cuenta"
+      "seamos honestos",
+      "esto te ha pasado",
+      "nadie nos conto esto",
+      "hagamos la cuenta con numeros reales",
+      "y aqui viene lo pesado",
+      "en cristiano"
     ],
-    "palabras_clave": ["ahorro", "inflación", "interés", "deuda", "sueldo", "banco", "emergencia", "presupuesto"],
-    "duracion_optima_rango": [90, 120],
+    "palabras_clave": [
+      "ahorro",
+      "inflación",
+      "interés",
+      "deuda",
+      "sueldo",
+      "banco",
+      "emergencia",
+      "presupuesto"
+    ],
+    "duracion_optima_rango": [
+      90,
+      120
+    ],
     "ctas_efectivos": [
-      {"tipo": "pregunta_abierta", "ejemplo": "¿Cuál de estos errores cometes tú? Te leo en comentarios"},
-      {"tipo": "guardar", "ejemplo": "Guarda este video para cuando cobres tu próximo sueldo"},
-      {"tipo": "seguimiento_parte2", "ejemplo": "Sígueme para la parte 2 donde te doy la solución paso a paso"}
+      {
+        "tipo": "pregunta_abierta",
+        "ejemplo": "¿Cuál de estos errores cometes tú? Te leo en comentarios"
+      },
+      {
+        "tipo": "guardar",
+        "ejemplo": "Guarda este video para cuando cobres tu próximo sueldo"
+      },
+      {
+        "tipo": "seguimiento_parte2",
+        "ejemplo": "Sígueme para la parte 2 donde te doy la solución paso a paso"
+      }
     ]
   },
   "anti_patrones": {
-    "hooks_a_evitar": ["saludos largos tipo hola amigos bienvenidos", "empezar con el título del tema sin gancho"],
-    "temas_muertos": ["jerga financiera técnica sin explicar", "criptomonedas con promesas de rendimiento"],
-    "errores_comunes": ["videos sin un solo número concreto", "más de 3 ideas en un solo video", "cerrar sin CTA"]
+    "hooks_a_evitar": [
+      "saludos largos tipo hola amigos bienvenidos",
+      "empezar con el título del tema sin gancho"
+    ],
+    "temas_muertos": [
+      "jerga financiera técnica sin explicar",
+      "criptomonedas con promesas de rendimiento"
+    ],
+    "errores_comunes": [
+      "videos sin un solo número concreto",
+      "más de 3 ideas en un solo video",
+      "cerrar sin CTA"
+    ]
   }
 }

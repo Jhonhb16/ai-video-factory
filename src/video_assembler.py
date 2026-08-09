@@ -1,4 +1,4 @@
-"""Ensambla el video: Ken Burns + concat + mezcla de audio. FFmpeg puro."""
+"""Ensambla el video: corte cada 3s + camaras alternadas + musica. FFmpeg puro."""
 import logging
 import shutil
 from pathlib import Path
@@ -10,6 +10,12 @@ log = logging.getLogger("VideoFactory.Assembler")
 IMG_DIR = Path("output/images")
 FINAL_DIR = Path("output/final")
 
+# Camaras alternadas: (ancla_x, ancla_y, direccion)
+CAMARAS = [
+    (0.5, 0.5, "in"), (0.3, 0.3, "out"), (0.7, 0.7, "in"),
+    (0.5, 0.25, "out"), (0.25, 0.6, "in"), (0.75, 0.4, "out"),
+]
+
 
 def assemble_video():
     cfg = load_config().get("contenido", {})
@@ -19,7 +25,7 @@ def assemble_video():
 
     audio = audio_path()
     if not audio.exists():
-        raise FileNotFoundError(f"No existe {audio}. Ejecuta el paso de voz.")
+        raise FileNotFoundError(f"No existe {audio}.")
     audio_dur = get_duration(audio)
 
     images = sorted(IMG_DIR.glob("img_*.png"))
@@ -27,65 +33,63 @@ def assemble_video():
         raise FileNotFoundError("No hay imagenes en output/images/.")
     n = len(images)
 
-    base = audio_dur / n
-    durations = [base] * n
-    durations[-1] = audio_dur - base * (n - 1)
-
-    music = None
-    if music_on:
-        tracks = sorted(Path("assets/music").glob("*.mp3")) if Path("assets/music").exists() else []
-        if tracks:
-            music = tracks[0]
-        else:
-            log.warning("Sin musica en assets/music/; se omite la pista musical.")
+    total_shots = max(8, round(audio_dur / 3.0))
+    shot_dur = audio_dur / total_shots
 
     seg_dir = Path(f"output/segments_{today()}")
     if seg_dir.exists():
         shutil.rmtree(seg_dir)
     seg_dir.mkdir(parents=True)
 
-    log.info(f"Renderizando {n} segmentos en paralelo (fps={fps})...")
+    log.info(f"Renderizando {total_shots} planos de ~{shot_dur:.1f}s (corte cada 3s)...")
     with ThreadPoolExecutor(max_workers=4) as ex:
         list(ex.map(
-            lambda i: _render_segment(images[i], durations[i], fps, seg_dir / f"seg_{i:03d}.mp4", i),
-            range(n)
+            lambda s: _render_shot(
+                images[s % n], shot_dur, fps,
+                seg_dir / f"seg_{s:03d}.mp4", CAMARAS[s % len(CAMARAS)]),
+            range(total_shots)
         ))
 
-    segments = [seg_dir / f"seg_{i:03d}.mp4" for i in range(n)]
-    for s in segments:
-        if not s.exists():
-            raise RuntimeError(f"Falta segmento {s}")
+    segments = [seg_dir / f"seg_{s:03d}.mp4" for s in range(total_shots)]
+    for sgm in segments:
+        if not sgm.exists():
+            raise RuntimeError(f"Falta segmento {sgm}")
+
+    music = None
+    if music_on:
+        tracks = sorted(Path("assets/music").glob("*.mp3")) if Path("assets/music").exists() else []
+        if tracks:
+            music = tracks[0]
+            log.info(f"Musica de fondo: {music.name}")
+        else:
+            log.warning("Sin musica en assets/music/. Sube un mp3 para edicion profesional.")
 
     FINAL_DIR.mkdir(parents=True, exist_ok=True)
     raw = FINAL_DIR / "video_raw.mp4"
-    _final_encode(segments, audio, music, music_vol, fps, raw)
-    log.info(f"Video ensamblado: {raw} ({audio_dur:.1f}s)")
-
+    _final_encode(segments, audio, music, music_vol, raw)
+    log.info(f"Video ensamblado: {raw} ({audio_dur:.1f}s, {total_shots} cortes)")
     shutil.rmtree(seg_dir, ignore_errors=True)
     return raw
 
 
-def _render_segment(img, dur, fps, out, idx):
+def _render_shot(img, dur, fps, out, cam):
     frames = max(1, round(dur * fps))
-    zoom_inc = 0.15 / frames
-    anchors = [(0.5, 0.5), (0.3, 0.3), (0.7, 0.7), (0.5, 0.3), (0.3, 0.7)]
-    ax, ay = anchors[idx % len(anchors)]
-
-    vf = (f"zoompan=z='min(zoom+{zoom_inc:.6f},1.15)'"
+    ax, ay, direction = cam
+    if direction == "in":
+        z = f"min(zoom+{0.15 / frames:.6f},1.15)"
+    else:
+        z = f"if(eq(on,1),1.2,max(zoom-{0.2 / frames:.6f},1.0))"
+    vf = (f"zoompan=z='{z}'"
           f":x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
           f":d={frames}:s=1080x1920:fps={fps}")
-
-    cmd = ["ffmpeg", "-y", "-i", str(img),
-           "-vf", vf,
-           "-frames:v", str(frames),
-           "-r", str(fps),
+    cmd = ["ffmpeg", "-y", "-i", str(img), "-vf", vf,
+           "-frames:v", str(frames), "-r", str(fps),
            "-c:v", "libx264", "-preset", "veryfast", "-crf", "17",
-           "-pix_fmt", "yuv420p",
-           str(out)]
+           "-pix_fmt", "yuv420p", str(out)]
     run_cmd(cmd, timeout=300)
 
 
-def _final_encode(segments, audio, music, music_vol, fps, out):
+def _final_encode(segments, audio, music, music_vol, out):
     n = len(segments)
     inputs = []
     for s in segments:
