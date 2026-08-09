@@ -1,5 +1,6 @@
-"""Genera guiones DESDE la matrix + expansion automatica + registro."""
+"""Guiones de ALTO IMPACTO (beats cortos) + expansion + registro."""
 import csv
+import re
 import json
 import hashlib
 import logging
@@ -16,42 +17,57 @@ PROHIBIDAS = [
     "libertad financiera en", "secreto que los bancos",
 ]
 
-SYSTEM_PROMPT = """Eres un guionista de contenido viral de finanzas personales en español.
-ESCRIBES COMO SE HABLA: coloquial, directo, como contándoselo a un amigo.
-CERO TECNICISMOS: lo complejo se explica con cafe, super, renta, la quincena.
-Recibes una MATRIX DE VIRALIDAD con patrones reales. Escribe UN guion que los aplique.
-El HOOK (primeros 3 segundos) debe disparar UNO de estos gatillos:
-- Curiosidad: "hay un agujero en tu quincena y ni lo notas"
-- Identificacion: "si llegas al 15 sin un peso, esto es para ti"
-- Experiencia vivida: "yo hice esto por años y me costo carisimo"
-ESTRUCTURA OBLIGATORIA CON PRESUPUESTO DE PALABRAS:
-* Hook: 15-20 palabras
-* Planteo del problema: 40-50 palabras
-* Punto 1: 60-70 palabras con un numero o ejemplo cotidiano
-* Punto 2: 60-70 palabras con un numero o ejemplo cotidiano
-* Punto 3: 60-70 palabras con un numero o ejemplo cotidiano
-* Cierre + CTA: 40-50 palabras
-TOTAL: 300-340 palabras. Cuenta y NO entregues menos de 280.
-Reglas: frases cortas, habla de "tu", NUNCA promesas de riqueza,
-20 escenas visuales, escapa comillas dobles dentro de textos.
-Responde UNICAMENTE JSON valido (un solo objeto):
+# Frases que delatan tono de LECTURA/ENSAYO (matan la retencion)
+LECTURA_PROHIBIDA = [
+    "en este video", "a continuacion", "en conclusion", "es importante mencionar",
+    "como hemos visto", "por lo tanto", "en primer lugar", "estimados",
+    "hoy vamos a hablar", "vamos a analizar", "de manera adecuada",
+    "herramienta util", "queridos amigos", "sin mas preambulos",
+    "como sabemos", "cabe destacar",
+]
+
+SYSTEM_PROMPT = """Eres guionista de reels VIRALES de finanzas en español.
+NO escribes para leer: escribes para VIDEO de alto impacto que ROMPE EL SCROLL.
+REGLAS DE ORO DEL RITMO:
+- Cada linea (beat) tiene 5-12 palabras. MAXIMO 14.
+- Frases cortas. Punto seguido. Cero conectores de ensayo.
+- Habla de "tu", como amigo, cero tecnicismos (lo complejo se explica con cafe, super, renta).
+- Un dato o numero concreto cada 2-3 lineas.
+- Un open loop a la mitad ("y el numero 3 es el que mas dano te hace...").
+PROHIBIDO (suena a lectura): "en este video", "a continuacion", "en conclusion",
+"es importante mencionar", "por lo tanto", "en primer lugar", "estimados",
+"hoy vamos a hablar", "vamos a analizar", "de manera adecuada".
+El HOOK (primeros 3s) dispara: curiosidad / identificacion / experiencia vivida.
+ESTRUCTURA: hook (1-2 lineas) → tension (2-3 lineas) → 3 puntos (3-4 lineas c/u con numero)
+→ cierre (2 lineas) → CTA (1-2 lineas). TOTAL: 24-30 lineas, 260-340 palabras.
+EJEMPLO DEL TONO EXACTO QUE QUIERO (copialo como referencia):
+  "Llegas al 15 sin un peso."
+  "Y no, no es mala suerte."
+  "Es esto."
+  "La mitad de tu quincena se va en lo fijo."
+  "Renta, luz, super."
+  "El 30, en antojos que ni recuerdas."
+  "Cafe de 60, taxi, la app de comida."
+  "Y el 20... ese ni existe."
+  "Porque nadie te enseno a apartarlo."
+  "Hoy cambias eso."
+Responde UNICAMENTE JSON valido:
 {
   "titulo": "maximo 8 palabras",
   "tipo_hook": "curiosidad / identificacion / experiencia_vivida / negacion_mito",
-  "estructura_usada": "nombre de estructura de la matrix",
-  "hook": "maximo 15 palabras",
-  "guion": "texto completo 300-340 palabras",
+  "estructura_usada": "beats-punch",
+  "hook": "8-15 palabras que rompen scroll",
+  "beats": ["linea de 5-12 palabras con su puntuacion", "..."],
   "cta": "maximo 20 palabras",
-  "escenas": [{"keyword": "palabras en ingles para buscar video de archivo, ej: counting cash money", "prompt_imagen": "descripcion en ingles, estilo cinematografico financiero"}],
+  "escenas": [{"keyword": "stock search words english", "prompt_imagen": "english description"}],
   "hashtags": ["maximo 5"]
 }"""
 
-SYSTEM_PROMPT_EXPAND = """Eres un editor de guiones de finanzas en español coloquial.
-Recibes un guion que quedo CORTO. Reescribelo AMPLIADO a 300-340 palabras.
-NO cambies el hook, el CTA, el titulo ni el tema.
-Agrega ejemplos cotidianos con numeros reales (cafe, super, renta, la quincena).
-Frases cortas, ritmo, cero tecnicismos.
-Devuelve el MISMO objeto JSON completo (todos los campos) con el "guion" ampliado.
+SYSTEM_PROMPT_EXPAND = """Eres editor de guiones de reels de finanzas en español.
+Recibes un guion en lineas (beats) que quedo CORTO.
+Agregale 4-8 lineas NUEVAS de 5-12 palabras con ejemplos cotidianos y numeros.
+NO cambies hook, CTA, titulo ni tema. Cero tono de ensayo.
+Devuelve el MISMO JSON completo con el arreglo "beats" ampliado.
 Responde UNICAMENTE JSON valido."""
 
 
@@ -66,7 +82,7 @@ def generar_guiones_desde_matrix(n=3, tema_semana=None):
             g = chat_json(
                 SYSTEM_PROMPT,
                 f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\nEscribe el guion #{i+1} de hoy con combinacion distinta de hook/estructura. JSON de UN solo guion:",
-                temperature=0.85, max_tokens=8000)
+                temperature=0.9, max_tokens=8000)
         except Exception as e:
             log.warning(f"Guion #{i+1} fallo al generar: {e}")
             continue
@@ -78,33 +94,56 @@ def generar_guiones_desde_matrix(n=3, tema_semana=None):
     return validos
 
 
-def _validar_y_ajustar(g):
-    if not isinstance(g, dict) or not g.get("guion"):
-        return None
-    palabras = len(g["guion"].split())
+def _extraer_beats(g):
+    beats = [b.strip() for b in (g.get("beats") or []) if b and b.strip()]
+    if not beats and g.get("guion"):
+        beats = [f.strip() for f in re.split(r"(?<=[.!?])\s+", g["guion"]) if f.strip()]
+    return beats
 
-    # Capa 2: si llego corto, pedir expansion UNA vez
+
+def _validar_y_ajustar(g):
+    if not isinstance(g, dict):
+        return None
+    beats = _extraer_beats(g)
+    if not beats:
+        return None
+    palabras = sum(len(b.split()) for b in beats)
+
+    # Capa expansion si quedo corto
     if palabras < 250:
-        log.info(f"Guion corto ({palabras} palabras). Pidiendo expansion a 300-340...")
+        log.info(f"Guion corto ({palabras} palabras). Pidiendo expansion en beats...")
         try:
             g2 = chat_json(
                 SYSTEM_PROMPT_EXPAND,
                 f"GUION ACTUAL ({palabras} palabras):\n{json.dumps(g, ensure_ascii=False)}",
                 temperature=0.7, max_tokens=8000)
-            if isinstance(g2, dict) and g2.get("guion"):
+            if isinstance(g2, dict):
                 g = {**g, **g2}
+                beats = _extraer_beats(g)
         except Exception as e:
             log.warning(f"Expansion fallo: {e}")
-        palabras = len(g.get("guion", "").split())
+        palabras = sum(len(b.split()) for b in beats)
 
-    # Capa 3: filtros finales con rango tolerante
-    texto = (g.get("hook", "") + " " + g.get("guion", "") + " " + g.get("titulo", "")).lower()
-    if any(p.lower() in texto for p in PROHIBIDAS):
+    texto = (g.get("hook", "") + " " + " ".join(beats) + " " + g.get("titulo", "")).lower()
+    # normaliza tildes para los filtros
+    texto_plano = texto
+
+    if any(p.lower() in texto_plano for p in PROHIBIDAS):
         log.warning(f"Guion '{g.get('titulo')}' descartado: frase prohibida")
+        return None
+    if any(p.lower() in texto_plano for p in LECTURA_PROHIBIDA):
+        log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura/ensayo")
         return None
     if not (230 <= palabras <= 370):
         log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (230-370)")
         return None
+    largos = [b for b in beats if len(b.split()) > 16]
+    if len(largos) > 2:
+        log.warning(f"Guion '{g.get('titulo')}' con ritmo de lectura ({len(largos)} lineas largas)")
+        return None
+
+    g["beats"] = beats
+    g["guion"] = "\n".join(beats)
     g["_palabras"] = palabras
     return g
 

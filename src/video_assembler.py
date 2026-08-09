@@ -137,10 +137,14 @@ def _generar_subtitulos(audio_dur):
     textos = []
     if guion.get("hook"):
         textos.append(guion["hook"])
-    for f in re.split(r"(?<=[.!?])\s+", guion.get("guion", "")):
-        w = f.split()
-        for i in range(0, len(w), 9):
-            textos.append(" ".join(w[i:i + 9]))
+    beats = [b for b in (guion.get("beats") or []) if b and b.strip()]
+    if beats:
+        textos.extend(beats)
+    else:
+        for f in re.split(r"(?<=[.!?])\s+", guion.get("guion", "")):
+            w = f.split()
+            for i in range(0, len(w), 9):
+                textos.append(" ".join(w[i:i + 9]))
     if guion.get("cta"):
         textos.append(guion["cta"])
     pesos = [max(1, len(t.split())) for t in textos]
