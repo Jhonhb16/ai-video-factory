@@ -60,7 +60,7 @@ Responde UNICAMENTE JSON valido:
 }"""
 
 SYSTEM_PROMPT_EXPAND = """Eres editor de guiones de comedia financiera en español.
-El total final DEBE quedar entre 260 y 340 palabras.
+El total final DEBE quedar entre 340 y 420 palabras.
 Agrega los beats NUEVOS necesarios (8-12 objetos {"t","k"} de 5-12 palabras)
 con regla de 3 y datos reales, hasta alcanzar el total.
 NO cambies hook, CTA, titulo ni tema.
@@ -131,13 +131,13 @@ def _validar_y_ajustar(g):
     palabras = sum(len(b["t"].split()) for b in beats)
 
     intentos = 0
-    while palabras < 250 and intentos < 3:
+    while palabras < 320 and intentos < 3:
         intentos += 1
         log.info(f"Guion corto ({palabras} palabras). Expansion {intentos}/3...")
         try:
             g2 = chat_json(
                 SYSTEM_PROMPT_EXPAND,
-                f"TOTAL OBJETIVO: 260-340 palabras. ACTUAL: {palabras}.\nGUION:\n{json.dumps(g, ensure_ascii=False)}",
+                f"TOTAL OBJETIVO: 340-420 palabras. ACTUAL: {palabras}.\nGUION:\n{json.dumps(g, ensure_ascii=False)}",
                 temperature=0.7, max_tokens=8000)
             if isinstance(g2, dict):
                 g = {**g, **g2}
@@ -153,8 +153,8 @@ def _validar_y_ajustar(g):
     if any(p in texto for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura")
         return None
-    if not (210 <= palabras <= 370):
-        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (210-370)")
+    if not (300 <= palabras <= 450):
+        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (300-450)")
         return None
     largos = [b for b in beats if len(b["t"].split()) > 16]
     if len(largos) > 2:

@@ -31,6 +31,7 @@ def generate_images(data=None):
     script = data.get("guion") if isinstance(data, dict) and "guion" in data else load_script()
     escenas = script.get("escenas", [])
     prompts = [e.get("prompt_imagen", "").strip() for e in escenas if e.get("prompt_imagen")]
+    es_texts = [(e.get("accion") or e.get("keyword") or "").strip() for e in escenas if e.get("prompt_imagen")]
     if not prompts:
         prompts = [_generic_prompt(i) for i in range(10)]
     prompts = prompts[:30]
@@ -42,7 +43,8 @@ def generate_images(data=None):
     for i, prompt in enumerate(prompts):
         dest = IMG_DIR / f"img_{i+1:03d}.png"
         if not dest.exists():
-            _fallback_image(prompt, dest)
+            txt_es = es_texts[i] if i < len(es_texts) and es_texts[i] else prompt
+            _fallback_image(txt_es, dest)
         paths.append(dest)
     log.info(f"{len(paths)} imagenes listas")
     return paths

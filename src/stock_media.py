@@ -18,7 +18,7 @@ def buscar_clip(keyword, dest):
         "orientation": "horizontal", "safesearch": "true"}, timeout=30)
     r.raise_for_status()
     for h in r.json().get("hits", []):
-        for q in ("sd", "tiny"):
+        for q in ("hd", "sd", "tiny"):
             f = (h.get("videos") or {}).get(q)
             if f and f.get("size", 0) < 25_000_000:
                 d = requests.get(f["url"], timeout=180)

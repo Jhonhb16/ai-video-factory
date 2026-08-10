@@ -70,7 +70,7 @@ def _edge_tts(texto, out, voice):
     import edge_tts
 
     async def _run():
-        comm = edge_tts.Communicate(texto, voice)
+        comm = edge_tts.Communicate(texto, voice, rate="+50%")
         await comm.save(str(out))
 
     asyncio.run(_run())
