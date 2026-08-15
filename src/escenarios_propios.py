@@ -9,6 +9,7 @@ movimiento lo pone despues el ensamblador con el zoom lento.
 import json
 import logging
 import random
+from collections import Counter
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -155,6 +156,7 @@ def generar_escenas(guion, n_planos=None, semilla=None):
     ultimo_pers = None
     hechas = 0
     turno = {}          # rotacion propia por tipo de beat, no por indice global
+    reparto_real = Counter()
 
     for i, tipo in enumerate(secuencia):
         encuadre = ENCUADRE_POR_BEAT.get(tipo, "general")
@@ -193,8 +195,18 @@ def generar_escenas(guion, n_planos=None, semilla=None):
 
         img.save(SALIDA / f"img_{hechas+1:03d}.png")
         hechas += 1
+        reparto_real[slug] += 1
         ultimo_fondo, ultimo_pers = fondo, slug
 
+    # El reparto se desequilibra con facilidad segun como caigan los beats,
+    # y un personaje que acapara el video se nota muchisimo. Queda medido.
+    total = sum(reparto_real.values()) or 1
+    detalle = ", ".join(f"{k} {v} ({100*v/total:.0f}%)"
+                        for k, v in reparto_real.most_common())
     log.info(f"{hechas} escenas propias compuestas "
              f"({len(set(f.name for f in fondos))} escenarios, {len(disponibles)} personajes)")
+    log.info(f"Reparto: {detalle}")
+    dominante, veces = reparto_real.most_common(1)[0]
+    if veces / total > 0.40:
+        log.warning(f"{dominante} acapara el {100*veces/total:.0f}% de los planos.")
     return hechas
