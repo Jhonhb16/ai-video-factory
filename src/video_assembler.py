@@ -214,7 +214,11 @@ def _final_encode(segments, audio, music, music_vol, out, sfx_cues):
 
     sub = MEDIA_DIR / "subs.ass"
     if sub.exists():
-        fc += f";[vcat]ass={sub}[vsub]"
+        # FIX Windows: en el filtergraph de ffmpeg el backslash es un escape, asi
+        # que "output\media\subs.ass" se convertia en "outputmediasubs.ass".
+        # La ruta es siempre relativa, asi que con barras normales basta y en
+        # Linux el replace no cambia nada.
+        fc += f";[vcat]ass={str(sub).replace(chr(92), '/')}[vsub]"
         vmap = "[vsub]"
     else:
         vmap = "[vcat]"

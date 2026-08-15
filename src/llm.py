@@ -7,8 +7,13 @@ import requests
 
 log = logging.getLogger("VideoFactory.LLM")
 
-# Orden por cuota gratuita: lite tiene la cuota mas alta
-GEMINI_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"]
+# Los gemini-2.0-* fueron retirados (404), igual que paso antes con 1.5-flash.
+# Los alias "-latest" NO caducan: Google los reapunta solo. Eso corta de raiz
+# el bug recurrente de "modelo muerto".
+GEMINI_MODELS = ["gemini-3.5-flash",            # preferido
+                 "gemini-flash-lite-latest",    # alias, cuota gratis mas alta
+                 "gemini-flash-latest",         # alias
+                 "gemini-2.5-flash"]            # ancla verificada
 
 
 def _gemini_key():
@@ -54,8 +59,10 @@ def chat_text(system, user, temperature=0.7, max_tokens=4000, force_json=False):
                 try:
                     return _gemini(system, user, temperature, max_tokens, force_json)
                 except Exception as e:
-                    if "429" in str(e) and _openai_key():
-                        log.warning("Gemini sin cuota (429). Usando OpenAI como respaldo.")
+                    # FIX: antes solo bajaba a OpenAI en 429. Si Gemini caia por
+                    # 503/404/red, el pipeline moria teniendo respaldo disponible.
+                    if _openai_key():
+                        log.warning(f"Gemini fallo ({str(e)[:120]}). Usando OpenAI como respaldo.")
                         return _openai(system, user, temperature, max_tokens, force_json)
                     raise
             return _openai(system, user, temperature, max_tokens, force_json)
@@ -75,7 +82,9 @@ def _gemini(system, user, temperature, max_tokens, force_json):
         gen_cfg = {"temperature": temperature, "maxOutputTokens": max_tokens}
         if force_json:
             gen_cfg["response_mime_type"] = "application/json"
-        if model.startswith("gemini-2.5"):
+        # Sin presupuesto de "pensamiento": si el modelo lo gasta, se queda sin
+        # tokens para la respuesta y devuelve parts vacio.
+        if model.startswith(("gemini-2.5", "gemini-3")):
             gen_cfg["thinkingConfig"] = {"thinkingBudget": 0}
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
         payload = {
@@ -84,7 +93,7 @@ def _gemini(system, user, temperature, max_tokens, force_json):
             "generationConfig": gen_cfg,
         }
         r = requests.post(url, json=payload, timeout=120)
-        if r.status_code == 400 and "thinkingConfig" in r.text:
+        if r.status_code == 400 and "think" in r.text.lower():
             payload["generationConfig"].pop("thinkingConfig", None)
             r = requests.post(url, json=payload, timeout=120)
         if r.status_code == 404:
@@ -94,6 +103,12 @@ def _gemini(system, user, temperature, max_tokens, force_json):
         if r.status_code == 429:
             saw_429 = True
             last_err = RuntimeError(f"Gemini {model} 429 cuota agotada")
+            continue
+        # FIX: 503 = modelo saturado (pasa a diario en el tier gratis) y 5xx en
+        # general son temporales. Antes reventaban el pipeline entero.
+        if r.status_code >= 500:
+            log.warning(f"Modelo {model} HTTP {r.status_code} (saturado); probando siguiente.")
+            last_err = RuntimeError(f"Gemini {model} HTTP {r.status_code}")
             continue
         if r.status_code != 200:
             raise RuntimeError(f"Gemini {model} HTTP {r.status_code}: {r.text[:300]}")

@@ -1,5 +1,7 @@
 config/.env
 .env
+.venv/
+venv/
 output/
 logs/
 __pycache__/

@@ -64,6 +64,16 @@ def _client():
 
 
 def publicar_dashboard(info=None):
+    """El panel es cosmetico: si R2 falla, se avisa pero NO se tumba el pipeline."""
+    try:
+        return _publicar_dashboard(info)
+    except Exception as e:
+        log.warning(f"Dashboard fallo (el video sigue OK): {str(e)[:200]}")
+        notify(f"Panel no actualizado: {str(e)[:120]}", ok=False)
+        return None
+
+
+def _publicar_dashboard(info=None):
     base = (os.getenv("R2_PUBLIC_BASE") or "").strip()
     bucket = (os.getenv("R2_BUCKET") or "").strip()
     if not (base and bucket):
@@ -77,7 +87,8 @@ def publicar_dashboard(info=None):
         local = Path("output/web/data.json")
         local.parent.mkdir(parents=True, exist_ok=True)
         c.download_file(bucket, "web/data.json", str(local))
-        data = json.loads(local.read_text())
+        # encoding explicito: en Windows el default es cp1252 y corrompe los acentos
+        data = json.loads(local.read_text(encoding="utf-8"))
     except Exception:
         data = []
 
@@ -104,7 +115,7 @@ def publicar_dashboard(info=None):
     data = data[:60]
 
     local = Path("output/web/data.json")
-    local.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    local.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     c.upload_file(str(local), bucket, "web/data.json",
                   ExtraArgs={"ContentType": "application/json"})
 
