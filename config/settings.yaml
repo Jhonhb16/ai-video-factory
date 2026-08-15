@@ -14,7 +14,9 @@ contenido:
   fps: 30
   estilo_visual: "cinematic_financial"
   musica_fondo: true
-  volumen_musica: 0.15
+  # Con ducking la musica puede ir mas alta: baja sola bajo la voz y llena
+  # las pausas. A 0.15 fijo practicamente no se oia.
+  volumen_musica: 0.35
   elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM"
   edge_voice: "es-MX-DaliaNeural"
   # Gemini TTS (gratis) acepta direccion actoral y suena mucho menos plano

@@ -38,7 +38,7 @@ PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "P
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
 HOOK (3s): curiosidad / identificacion / experiencia vivida.
 ESTRUCTURA: hook → setup (2-3) → 3 bloques comicos con dato → callback → CTA.
-TOTAL: 20-24 beats, 190-230 palabras. Minimo 4 beats k=punch y 3 k=dato.
+TOTAL: 20-24 beats, 190-215 palabras. Minimo 4 beats k=punch y 3 k=dato.
 EJEMPLO DEL TONO EXACTO:
   {"t": "Llegas al 15.", "k": "normal"}
   {"t": "Tu cartera: vacia.", "k": "normal"}
@@ -184,8 +184,9 @@ def _validar_y_ajustar(g):
     if any(p in texto for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura")
         return None
-    if not (170 <= palabras <= 280):
-        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (170-280)")
+    # medido: 251 palabras dieron 84.7s. ~2,96 palabras/segundo => 70s ≈ 207
+    if not (170 <= palabras <= 235):
+        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (170-235)")
         return None
     largos = [b for b in beats if len(b["t"].split()) > 16]
     if len(largos) > 2:

@@ -103,10 +103,11 @@ def assemble_video():
         if not sgm.exists():
             raise RuntimeError(f"Falta segmento {sgm}")
 
+    # Rotar la pista por fecha: con tracks[0] todos los videos sonaban igual.
     music = None
     tracks = sorted(Path("assets/music").glob("*.mp3")) if Path("assets/music").exists() else []
     if tracks:
-        music = tracks[0]
+        music = tracks[int(today()) % len(tracks)]
     elif MEDIA_DIR.exists() and (MEDIA_DIR / "musica.mp3").exists():
         music = MEDIA_DIR / "musica.mp3"
 
@@ -119,8 +120,10 @@ def assemble_video():
     FINAL_DIR.mkdir(parents=True, exist_ok=True)
     raw = FINAL_DIR / "video_raw.mp4"
     _final_encode(segments, audio, music, music_vol, raw, sfx_cues)
+    # el conteo de SFX cuenta senales, no archivos: solo se mezclan los que existen
+    sfx_reales = sum(1 for (_, n) in sfx_cues if (MEDIA_DIR / n).exists())
     log.info(f"Video ensamblado: {raw} ({audio_dur:.1f}s, {total_shots} cortes, "
-             f"{len(sfx_cues)} SFX)")
+             f"musica={music.name if music else 'NINGUNA'}, {sfx_reales} SFX)")
     shutil.rmtree(seg_dir, ignore_errors=True)
     return raw
 
@@ -226,16 +229,36 @@ def _final_encode(segments, audio, music, music_vol, out, sfx_cues):
     else:
         vmap = "[vcat]"
 
-    fc += f";[{aidx}:a]volume=1.0[a0]"
-    maps = ["[a0]"]
+    # sidechaincompress exige MISMO formato en sus dos entradas. La voz de
+    # Gemini llega a 24 kHz y la musica de MusicGen a 32 kHz.
+    # OJO: no forzar channel_layouts=stereo. Ambas fuentes son mono y el
+    # upmix a estereo reparte la potencia entre canales: le quitaba 3 dB a
+    # la voz y el video acababa sonando MAS BAJO que la narracion sola.
+    FMT = "aformat=sample_fmts=fltp:sample_rates=48000"
+
     if music:
-        fc += f";[{midx}:a]volume={music_vol:.3f}[a1]"
-        maps.append("[a1]")
+        # Ducking: la musica baja sola mientras hay voz y vuelve a subir en
+        # las pausas. Es lo que separa un video producido de uno amateur.
+        # La voz se duplica: una copia se mezcla y otra dispara el compresor.
+        fc += f";[{aidx}:a]{FMT},volume=1.0,asplit=2[a0][vref]"
+        # threshold alto y ratio moderado: con threshold=0.02 y ratio=6 la
+        # musica quedaba comprimida SIEMPRE, no solo bajo la voz, y
+        # desaparecia de la mezcla.
+        fc += (f";[{midx}:a]{FMT},volume={music_vol:.3f}[mus]"
+               f";[mus][vref]sidechaincompress="
+               f"threshold=0.1:ratio=4:attack=20:release=500:makeup=1[a1]")
+        maps = ["[a0]", "[a1]"]
+    else:
+        fc += f";[{aidx}:a]{FMT},volume=1.0[a0]"
+        maps = ["[a0]"]
     for j, (t, idx) in enumerate(sfx_list):
         ms = int(t * 1000)
         fc += f";[{idx}:a]adelay={ms}|{ms},volume=0.9[s{j}]"
         maps.append(f"[s{j}]")
-    fc += f";{''.join(maps)}amix=inputs={len(maps)}:normalize=0:duration=first[aout]"
+    # alimiter deja 1 dB de margen: al sumar voz + musica + SFX el pico
+    # llegaba a 0.0 dB, que es saturacion. Las plataformas piden headroom.
+    fc += (f";{''.join(maps)}amix=inputs={len(maps)}:normalize=0:duration=first"
+           f",alimiter=limit=0.89:level=disabled[aout]")
 
     cmd = ["ffmpeg", "-y"] + inputs + [
         "-filter_complex", fc,
