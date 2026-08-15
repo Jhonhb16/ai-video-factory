@@ -34,9 +34,11 @@ TECNICAS DE COMEDIA OBLIGATORIAS:
 - Callback: al final, referencia al hook.
 - Un dato real de finanzas cada 3-4 lineas (k=dato).
 PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es importante".
+PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
+Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
 HOOK (3s): curiosidad / identificacion / experiencia vivida.
 ESTRUCTURA: hook → setup (2-3) → 3 bloques comicos con dato → callback → CTA.
-TOTAL: 26-30 beats, 280-340 palabras. Minimo 4 beats k=punch y 3 k=dato.
+TOTAL: 20-24 beats, 190-230 palabras. Minimo 4 beats k=punch y 3 k=dato.
 EJEMPLO DEL TONO EXACTO:
   {"t": "Llegas al 15.", "k": "normal"}
   {"t": "Tu cartera: vacia.", "k": "normal"}
@@ -60,7 +62,7 @@ Responde UNICAMENTE JSON valido:
 }"""
 
 SYSTEM_PROMPT_EXPAND = """Eres editor de guiones de comedia financiera en español.
-El total final DEBE quedar entre 340 y 420 palabras.
+El total final DEBE quedar entre 200 y 250 palabras.
 Agrega los beats NUEVOS necesarios (8-12 objetos {"t","k"} de 5-12 palabras)
 con regla de 3 y datos reales, hasta alcanzar el total.
 NO cambies hook, CTA, titulo ni tema.
@@ -105,8 +107,30 @@ def aplicar_cambios(g, cambios):
         return None
 
 
+# Acotaciones de guion que el LLM cuela dentro de los beats. Si no se
+# filtran, se NARRAN en voz alta y aparecen en los subtitulos: llego a salir
+# "*(SFX: Caja registradora cayendo y llanto)*" cinco veces en un video.
+# OJO al orden: primero se limpia el formato y DESPUES se evalua. Si se hace
+# al reves, "**Y el resto en antojos.**" (negrita de markdown) se confunde con
+# una acotacion y se pierde un chiste bueno.
+ACOTACION = re.compile(
+    r"^\((?![^)]*\b(que|de|la|el|y|a)\b\s).*\)$"   # frase entera entre parentesis
+    r"|^\[.*\]$"                                    # frase entera entre corchetes
+    r"|\b(sfx|efecto de sonido|voz en off|plano|c[aá]mara|escena)\s*:"
+    # los dos puntos deben ir PEGADOS: "Musica:" es acotacion, pero
+    # "Musica para tus oidos: ya no debes nada" es una frase legitima.
+    r"|^\s*(m[uú]sica|sonido)\s*:",
+    re.IGNORECASE)
+
+
+def _limpiar_texto(t):
+    """Quita marcas de formato sueltas que el LLM añade (asteriscos, guiones)."""
+    return re.sub(r"^[\*\-–\s]+|[\*\s]+$", "", t).strip()
+
+
 def _normalizar_beats(g):
     out = []
+    vistos = set()
     for b in (g.get("beats") or []):
         if isinstance(b, dict):
             t = (b.get("t") or "").strip()
@@ -114,8 +138,14 @@ def _normalizar_beats(g):
         else:
             t = str(b).strip()
             k = "normal"
-        if t:
-            out.append({"t": t, "k": k})
+        t = _limpiar_texto(t)
+        if not t or ACOTACION.search(t):
+            continue
+        clave = t.lower()
+        if not t or clave in vistos:      # sin repetidos: aburren y gastan segundos
+            continue
+        vistos.add(clave)
+        out.append({"t": t, "k": k})
     if not out and g.get("guion"):
         out = [{"t": f.strip(), "k": "normal"}
                for f in re.split(r"(?<=[.!?])\s+", g["guion"]) if f.strip()]
@@ -130,14 +160,15 @@ def _validar_y_ajustar(g):
         return None
     palabras = sum(len(b["t"].split()) for b in beats)
 
+    # ~3,2 palabras/segundo a 1.5x => 70s ≈ 225 palabras
     intentos = 0
-    while palabras < 320 and intentos < 3:
+    while palabras < 190 and intentos < 3:
         intentos += 1
         log.info(f"Guion corto ({palabras} palabras). Expansion {intentos}/3...")
         try:
             g2 = chat_json(
                 SYSTEM_PROMPT_EXPAND,
-                f"TOTAL OBJETIVO: 340-420 palabras. ACTUAL: {palabras}.\nGUION:\n{json.dumps(g, ensure_ascii=False)}",
+                f"TOTAL OBJETIVO: 200-250 palabras. ACTUAL: {palabras}.\nGUION:\n{json.dumps(g, ensure_ascii=False)}",
                 temperature=0.7, max_tokens=8000)
             if isinstance(g2, dict):
                 g = {**g, **g2}
@@ -153,8 +184,8 @@ def _validar_y_ajustar(g):
     if any(p in texto for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura")
         return None
-    if not (300 <= palabras <= 450):
-        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (300-450)")
+    if not (170 <= palabras <= 280):
+        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (170-280)")
         return None
     largos = [b for b in beats if len(b["t"].split()) > 16]
     if len(largos) > 2:

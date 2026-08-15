@@ -88,19 +88,49 @@ def run(draft=False, skip_intelligence=False):
         from src.voice_generator import generate_voice
         generate_voice(resultado["data"])
 
+    # ¿se pudieron componer escenas con personajes y escenarios propios?
+    propias = {"ok": False}
+
+    def _guion_actual():
+        if resultado["data"]:
+            return resultado["data"]["guion"]
+        from src.utils import load_script
+        return load_script()
+
     def paso_imagenes():
+        # 1º escenas propias (personajes del canal sobre escenarios propios),
+        # 2º generadores de imagen, 3º tarjetas de respaldo.
+        from src.escenarios_propios import generar_escenas
+        try:
+            n = generar_escenas(_guion_actual())
+        except Exception as e:
+            log.warning(f"Escenas propias fallaron ({e}); se usa el sistema anterior.")
+            n = 0
+        if n >= 8:
+            propias["ok"] = True
+            log.info(f"{n} escenas propias: se omite el b-roll de stock.")
+            return
         from src.image_generator import generate_images
         generate_images(resultado["data"])
 
     def paso_media():
-        from src.stock_media import download_media
-        g = resultado["data"]["guion"] if resultado["data"] else None
-        if g is None:
-            from src.utils import load_script
-            g = load_script()
-        download_media(g)
-        from src.mascot import generar_mascotas
-        generar_mascotas()
+        from src.stock_media import download_media, descargar_sfx
+        g = _guion_actual()
+        if propias["ok"]:
+            # con escenas propias no hace falta stock; si acaso, musica y SFX
+            descargar_sfx()
+        else:
+            download_media(g)
+
+        # La mascota sobra si ya salen los personajes del canal: serian dos
+        # estilos distintos peleando en el mismo plano.
+        mascot_dir = Path("output/media/mascot")
+        if propias["ok"]:
+            for p in mascot_dir.glob("*.png"):
+                p.unlink()
+        else:
+            from src.mascot import generar_mascotas
+            generar_mascotas()
 
     def paso_video():
         from src.video_assembler import assemble_video

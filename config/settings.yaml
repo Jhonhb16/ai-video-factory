@@ -2,7 +2,10 @@ proyecto:
   nombre: "AI Video Factory - Dinero Inteligente"
   nicho: "finanzas_personales"
   idioma: "es"
-  duracion_objetivo_segundos: 120
+  # 70s: sigue por encima del minimo de 60s que exigen los in-stream ads de
+  # Meta, pero mucho mas cerca del rango donde el algoritmo no castiga. A
+  # 120s era casi imposible mantener el % de reproduccion completa.
+  duracion_objetivo_segundos: 70
   videos_por_dia: 1
 
 contenido:
@@ -14,6 +17,10 @@ contenido:
   volumen_musica: 0.15
   elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM"
   edge_voice: "es-MX-DaliaNeural"
+  # Gemini TTS (gratis) acepta direccion actoral y suena mucho menos plano
+  # que edge-tts. Voces: Puck (energico), Kore, Charon, Fenrir, Aoede.
+  gemini_voz: "Puck"
+  velocidad_voz: 1.2
   disclosure_texto: "Contenido generado con IA"
 
 intelligence:
