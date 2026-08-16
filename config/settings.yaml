@@ -25,6 +25,17 @@ contenido:
   velocidad_voz: 1.2
   disclosure_texto: "Contenido generado con IA"
 
+hook_hablado:
+  # El personaje abre el video moviendo los labios (SadTalker, GPU local).
+  # Solo afecta a la apertura: el resto sigue con planos fijos y camara.
+  # En GitHub Actions no hay GPU, asi que alli no se activa y el video
+  # sale igual con la apertura normal.
+  activado: true
+  segundos: 12          # duracion de la apertura hablada
+  tamano: 256           # 256 = diario. 512 = mas nitido, bastante mas lento
+  timeout_segundos: 900 # pasado este limite se abandona y sigue el pipeline
+  ruta_sadtalker: "D:/LipSyncTools/SadTalker"
+
 intelligence:
   hashtags_descubrimiento:
     - "finanzaspersonales"

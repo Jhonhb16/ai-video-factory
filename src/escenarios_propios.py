@@ -155,18 +155,19 @@ def generar_escenas(guion, n_planos=None, semilla=None):
     ultimo_fondo = None
     ultimo_pers = None
     hechas = 0
-    turno = {}          # rotacion propia por tipo de beat, no por indice global
     reparto_real = Counter()
 
     for i, tipo in enumerate(secuencia):
         encuadre = ENCUADRE_POR_BEAT.get(tipo, "general")
 
-        # personaje: rota dentro del tipo y evita repetir el del plano anterior
+        # Personaje: de los que encajan con este tipo de beat, se elige el
+        # que MENOS ha salido hasta ahora. Rotar por turnos no basta: segun
+        # como caigan los beats, un personaje acababa con el 44% del video.
         candidatos = [s for s in REPARTO.get(tipo, ["mario"]) if s in disponibles] or ["mario"]
         opciones = [s for s in candidatos if s != ultimo_pers] or candidatos
-        turno[tipo] = turno.get(tipo, 0)
-        slug = opciones[turno[tipo] % len(opciones)]
-        turno[tipo] += 1
+        # el desempate sigue el orden del reparto, que es intencional:
+        # el primero de cada lista es el que mejor encaja con ese tipo
+        slug = min(opciones, key=lambda s: (reparto_real[s], candidatos.index(s)))
 
         # fondo: nunca dos iguales seguidos, y respetando el encuadre.
         # Los fondos con mueble en primer plano (cocina) no admiten cuerpo

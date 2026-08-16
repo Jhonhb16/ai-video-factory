@@ -154,6 +154,10 @@ def assemble_video():
         list(ex.map(lambda j: _render(j, fps, seg_dir), jobs))
 
     segments = [seg_dir / f"seg_{s:03d}.mp4" for s in range(len(planos))]
+
+    # Apertura hablada (solo local, con GPU). Si falla o no esta disponible,
+    # los segmentos se quedan como estan y el video sale igual.
+    segments = _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir)
     for sgm in segments:
         if not sgm.exists():
             raise RuntimeError(f"Falta segmento {sgm}")
@@ -189,6 +193,61 @@ def assemble_video():
              f"musica={music.name if music else 'NINGUNA'}, {sfx_reales} SFX)")
     shutil.rmtree(seg_dir, ignore_errors=True)
     return raw
+
+
+def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
+    """Sustituye los primeros planos por un unico plano hablado.
+
+    Devuelve la lista de segmentos tal cual si algo falla: esta funcion
+    nunca puede tumbar el montaje.
+    """
+    try:
+        from src.hook_hablado import generar_hook, disponible
+        if not disponible() or not images:
+            return segments
+
+        objetivo = float(load_config().get("hook_hablado", {}).get("segundos", 12))
+
+        # Cuantos planos cubre la apertura: se corta donde la suma se acerque
+        # mas al objetivo, para que la duracion cuadre exacta y el audio no
+        # se desplace respecto al resto del video.
+        acumulado, corte, mejor, dur_hook = 0.0, 0, float("inf"), 0.0
+        for i, p in enumerate(planos):
+            acumulado += p["end"] - p["start"]
+            dif = abs(acumulado - objetivo)
+            if dif < mejor:
+                mejor, corte, dur_hook = dif, i + 1, acumulado
+        if corte < 2 or dur_hook <= 0:
+            log.info("La apertura cubriria menos de dos planos; se deja normal.")
+            return segments
+
+        # se le pide la duracion YA cuadrada con los planos, no un valor
+        # redondo: si no, el video vuelve con otra duracion y hay que tirarlo
+        hook = generar_hook(audio, images[0], segundos=dur_hook)
+        if not hook:
+            return segments
+
+        # Reencodear a los mismos parametros que los demas segmentos y
+        # recortar a la duracion EXACTA de los planos que sustituye.
+        destino = seg_dir / "seg_hook.mp4"
+        run_cmd(["ffmpeg", "-y", "-i", str(hook), "-t", f"{dur_hook:.3f}",
+                 "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
+                        f"crop=1080:1920,setsar=1,fps={fps}",
+                 "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                 "-pix_fmt", "yuv420p", str(destino)])
+
+        real = get_duration(destino)
+        if abs(real - dur_hook) > 0.25:
+            log.warning(f"El hook hablado quedo en {real:.2f}s en vez de "
+                        f"{dur_hook:.2f}s; se descarta para no desincronizar.")
+            return segments
+
+        log.info(f"Apertura hablada: sustituye {corte} planos ({dur_hook:.1f}s)")
+        return [destino] + segments[corte:]
+
+    except Exception as e:
+        log.warning(f"No se pudo aplicar la apertura hablada ({e}); sigue normal.")
+        return segments
 
 
 def _render(job, fps, seg_dir):
