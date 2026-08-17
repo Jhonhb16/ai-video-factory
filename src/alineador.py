@@ -141,13 +141,31 @@ def alinear(items, audio, duracion):
                         f"se deja el reparto estimado.")
             return items
 
-        # Las que no se encontraron se interpolan entre sus vecinas
-        for i, a in enumerate(anclas):
-            if a is not None:
+        # Las frases sin anclar se reparten en el hueco PROPORCIONALMENTE a
+        # sus palabras. Colocarlas en el punto medio es tosco: una frase
+        # corta metida entre dos largas quedaba con 2.4s de desfase.
+        i = 0
+        while i < len(anclas):
+            if anclas[i] is not None:
+                i += 1
                 continue
-            prev = next((anclas[j] for j in range(i - 1, -1, -1) if anclas[j] is not None), 0.0)
-            sig = next((anclas[j] for j in range(i + 1, len(anclas)) if anclas[j] is not None), duracion)
-            anclas[i] = prev + (sig - prev) / 2
+            fin = i
+            while fin < len(anclas) and anclas[fin] is None:
+                fin += 1
+            ini_t = anclas[i - 1] if i > 0 else 0.0
+            fin_t = anclas[fin] if fin < len(anclas) else duracion
+            hueco = max(0.01, fin_t - ini_t)
+
+            # la frase anterior tambien ocupa parte del hueco
+            pesos = [max(1, len(items[j]["txt"].split()))
+                     for j in range(max(0, i - 1), fin)]
+            total = sum(pesos) or 1
+            t = ini_t
+            for k, j in enumerate(range(max(0, i - 1), fin)):
+                if j >= i:
+                    anclas[j] = t
+                t += hueco * pesos[k] / total
+            i = fin
 
         # start = donde empieza a hablar; end = donde empieza la frase siguiente
         alineados = []

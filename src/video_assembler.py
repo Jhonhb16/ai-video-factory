@@ -247,9 +247,22 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
         # Reencodear a los mismos parametros que los demas segmentos y
         # recortar a la duracion EXACTA de los planos que sustituye.
         destino = seg_dir / "seg_hook.mp4"
+        maqueta = (load_config().get("contenido", {}) or {}).get("maqueta", "panel")
+        if maqueta == "panel":
+            # La apertura tambien obedece la reticula: si no, los primeros
+            # segundos llevan el subtitulo encima de la cara y el video
+            # arranca contradiciendo su propio diseño.
+            alto = int(1920 * ALTO_IMAGEN) // 2 * 2
+            vf = (f"scale=1080:{alto}:force_original_aspect_ratio=increase,"
+                  f"crop=1080:{alto},setsar=1,fps={fps},"
+                  f"pad=1080:1920:0:0:color={COLOR_PANEL},"
+                  f"drawbox=x=0:y={alto}:w=1080:h=8:"
+                  f"color={COLOR_ACENTO['hook']}@1:t=fill")
+        else:
+            vf = (f"scale=1080:1920:force_original_aspect_ratio=increase,"
+                  f"crop=1080:1920,setsar=1,fps={fps}")
         run_cmd(["ffmpeg", "-y", "-i", str(hook), "-t", f"{dur_hook:.3f}",
-                 "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
-                        f"crop=1080:1920,setsar=1,fps={fps}",
+                 "-vf", vf,
                  "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
                  "-pix_fmt", "yuv420p", str(destino)])
 

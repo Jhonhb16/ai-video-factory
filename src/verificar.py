@@ -127,6 +127,13 @@ def revisar_sincronia():
     from src.alineador import _palabras_reales, _normalizar
     from src.utils import audio_path
 
+    # Un verificador que da falsas alarmas es peor que no tenerlo: enseña a
+    # ignorarlo. Si los subtitulos son de un montaje anterior no se pueden
+    # comparar con la voz de hoy, asi que se avisa en vez de dar por fallado.
+    if ass.stat().st_mtime < audio_path().stat().st_mtime:
+        return _mide("subtitulos al dia", AVISO,
+                     "son de un montaje anterior; falta reensamblar")
+
     def seg(t):
         h, m, s = t.split(":")
         return int(h) * 3600 + int(m) * 60 + float(s)
@@ -138,18 +145,30 @@ def revisar_sincronia():
             texto = re.sub(r"\{[^}]*\}", "", p[9]).replace("\\N", " ").strip()
             lineas.append((seg(p[1]), texto))
 
+    # Se compara la secuencia de las primeras palabras, igual que el
+    # alineador. Con una sola palabra, un "y" o un "el" empareja dentro de
+    # la frase anterior y se reportaban 2.4s de desfase inexistentes: la
+    # herramienta de medida no puede ser peor que lo que mide.
+    from src.alineador import _parecidas
     palabras = _palabras_reales(audio_path())
     cursor, errores = 0, []
     for inicio, texto in lineas:
-        tr = texto.split()
+        tr = [_normalizar(t) for t in texto.split()[:3]]
+        tr = [t for t in tr if t]
         if not tr:
             continue
-        obj = _normalizar(tr[0])
-        for j in range(cursor, min(cursor + 40, len(palabras))):
-            if _normalizar(palabras[j][2]) == obj:
-                errores.append(abs(inicio - palabras[j][0]))
-                cursor = j + 1
-                break
+        mejor_pos, mejor_puntos = None, 0
+        for j in range(cursor, min(cursor + 60, len(palabras))):
+            puntos = sum(1 for k, o in enumerate(tr)
+                         if j + k < len(palabras)
+                         and _parecidas(_normalizar(palabras[j + k][2]), o))
+            if puntos > mejor_puntos:
+                mejor_pos, mejor_puntos = j, puntos
+                if puntos == len(tr):
+                    break
+        if mejor_pos is not None and mejor_puntos >= min(2, len(tr)):
+            errores.append(abs(inicio - palabras[mejor_pos][0]))
+            cursor = mejor_pos + 1
 
     if not errores:
         return _mide("subtitulos sincronizados", AVISO, "no se pudo medir")

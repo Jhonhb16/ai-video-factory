@@ -225,8 +225,10 @@ def generar_escenas_ia(guion, items, fecha):
             (destino_clips / f"clip_{idx:03d}.mp4").write_bytes(ruta.read_bytes())
         log.info(f"{len(clips)} clips animados generados")
 
+    # el gasto puede salir negativo si se recargan creditos a mitad de la
+    # corrida; en ese caso no se informa en vez de mostrar un numero absurdo
     gastado = (saldo - (kie.creditos() or saldo)) if saldo else 0
+    coste = f", ~{gastado:.0f} creditos = ${gastado*0.005:.2f}" if gastado > 0 else ""
     log.info(f"{hechas} escenas con elenco nuevo "
-             f"({len(refs)} personajes, {len(clips)} clips, "
-             f"~{gastado:.0f} creditos = ${gastado*0.005:.2f})")
+             f"({len(refs)} personajes, {len(clips)} clips{coste})")
     return hechas
