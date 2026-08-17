@@ -1,7 +1,13 @@
 config/.env
 .env
+.venv/
+venv/
 output/
 logs/
 __pycache__/
 *.pyc
 .DS_Store
+
+# material en bruto: video de personas reales y descartes
+assets/rodaje/*.mp4
+assets/rodaje/*.mov

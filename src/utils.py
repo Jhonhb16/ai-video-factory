@@ -66,14 +66,22 @@ def run_cmd(cmd, timeout=900):
 def load_font(size):
     from PIL import ImageFont
     candidates = [
+        # Linux (GitHub Actions) primero: no cambia el resultado en la nube
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
         "assets/fonts/DejaVuSans-Bold.ttf",
+        # Windows (ejecucion local): sin esto PIL cae al bitmap por defecto
+        "C:/Windows/Fonts/arialbd.ttf",
+        "C:/Windows/Fonts/verdanab.ttf",
+        "C:/Windows/Fonts/calibrib.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
     ]
     for c in candidates:
         if Path(c).exists():
             return ImageFont.truetype(c, size)
+    log.warning("Sin fuente TrueType; se usa la bitmap por defecto (texto muy pequeno).")
     return ImageFont.load_default()
 
 
