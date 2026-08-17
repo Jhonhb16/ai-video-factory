@@ -25,6 +25,15 @@ MAX_PLANO = 4.0
 SFX_POR_BEAT = {"punch": "impacto", "dato": "ding", "hook": "whoosh",
                 "cta": "impacto", "normal": "whoosh"}
 
+# Maqueta "panel": la imagen ocupa el 60% superior y debajo queda una banda
+# oscura donde vive el texto. Asi el subtitulo NUNCA tapa la imagen, y esa
+# banda es la misma zona donde se dibujan los graficos de cifras: imagenes y
+# datos comparten una sola reticula y el video se lee como un solo producto.
+ALTO_IMAGEN = 0.60
+COLOR_PANEL = "0x070b12"
+COLOR_ACENTO = {"punch": "0xff4d6d", "dato": "0x22e39a", "hook": "0xffc857",
+                "cta": "0x22e39a", "normal": "0x22e39a"}
+
 
 def _agrupar_en_planos(items):
     """Convierte beats en planos, uniendo los demasiado cortos.
@@ -143,6 +152,7 @@ def assemble_video():
              f"({min(duraciones):.1f}s a {max(duraciones):.1f}s, "
              f"media {sum(duraciones)/len(duraciones):.1f}s)")
 
+    maqueta = (load_config().get("contenido", {}) or {}).get("maqueta", "panel")
     jobs = []
     clip_durs = {c: get_duration(c) for c in clips} if clips else {}
     for s, p in enumerate(planos):
@@ -154,7 +164,8 @@ def assemble_video():
             off = min((s // len(clips)) * dur, max(0.0, cd - dur - 0.3))
             jobs.append(("clip", clip, off, s, pose, dur, p["k"]))
         else:
-            jobs.append(("img", images[p["idx"] % len(images)], 0, s, pose, dur, p["k"]))
+            modo = "img_panel" if maqueta == "panel" else "img"
+            jobs.append((modo, images[p["idx"] % len(images)], 0, s, pose, dur, p["k"]))
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         list(ex.map(lambda j: _render(j, fps, seg_dir), jobs))
@@ -236,9 +247,22 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
         # Reencodear a los mismos parametros que los demas segmentos y
         # recortar a la duracion EXACTA de los planos que sustituye.
         destino = seg_dir / "seg_hook.mp4"
+        maqueta = (load_config().get("contenido", {}) or {}).get("maqueta", "panel")
+        if maqueta == "panel":
+            # La apertura tambien obedece la reticula: si no, los primeros
+            # segundos llevan el subtitulo encima de la cara y el video
+            # arranca contradiciendo su propio diseño.
+            alto = int(1920 * ALTO_IMAGEN) // 2 * 2
+            vf = (f"scale=1080:{alto}:force_original_aspect_ratio=increase,"
+                  f"crop=1080:{alto},setsar=1,fps={fps},"
+                  f"pad=1080:1920:0:0:color={COLOR_PANEL},"
+                  f"drawbox=x=0:y={alto}:w=1080:h=8:"
+                  f"color={COLOR_ACENTO['hook']}@1:t=fill")
+        else:
+            vf = (f"scale=1080:1920:force_original_aspect_ratio=increase,"
+                  f"crop=1080:1920,setsar=1,fps={fps}")
         run_cmd(["ffmpeg", "-y", "-i", str(hook), "-t", f"{dur_hook:.3f}",
-                 "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
-                        f"crop=1080:1920,setsar=1,fps={fps}",
+                 "-vf", vf,
                  "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
                  "-pix_fmt", "yuv420p", str(destino)])
 
@@ -266,6 +290,29 @@ def _render(job, fps, seg_dir):
         base = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
         inputs = ["-stream_loop", "1", "-ss", f"{off:.2f}", "-i", str(src)]
         tflag = ["-t", f"{dur:.2f}"]
+    elif kind == "img_panel":
+        # Maqueta A: imagen arriba, panel de texto abajo. El texto no la tapa.
+        frames = max(1, round(dur * fps))
+        alto = int(1920 * ALTO_IMAGEN) // 2 * 2      # par, lo exige el codec
+        ax, ay, direction = CAMARAS[idx % len(CAMARAS)]
+        # Las imagenes son 9:16 y la zona es casi cuadrada (1080x1152): al
+        # recortar se pierde casi el 40% del alto. Con el recorte centrado
+        # salian planos de torso sin cabeza. Se sesga fuerte hacia ARRIBA,
+        # que es donde esta la cara en un plano de cuerpo entero.
+        ay = min(ay, 0.12)
+        avance = 0.22 if tipo in ("punch", "cta") else 0.12
+        tope = 1.0 + avance
+        z = f"min(zoom+{avance/frames:.6f},{tope:.2f})"
+        acento = COLOR_ACENTO.get(tipo, "0x22e39a")
+        base = (f"scale={1080*2}:{alto*2}:force_original_aspect_ratio=increase,"
+                f"crop={1080*2}:{alto*2},"
+                f"zoompan=z='{z}':x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
+                f":d={frames}:s=1080x{alto}:fps={fps},"
+                f"pad=1080:1920:0:0:color={COLOR_PANEL},"
+                f"drawbox=x=0:y={alto}:w=1080:h=8:color={acento}@1:t=fill")
+        inputs = ["-i", str(src)]
+        tflag = ["-frames:v", str(frames)]
+
     else:
         frames = max(1, round(dur * fps))
         ax, ay, direction = CAMARAS[idx % len(CAMARAS)]
@@ -316,12 +363,13 @@ def _generar_subtitulos(items):
         "PlayResX: 1080", "PlayResY: 1920",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        # MarginV=560: los ~600px inferiores de un Reel los tapa la interfaz
-        # (caption, botones de like/comentar/compartir). Con el valor
-        # anterior (160) los subtitulos quedaban debajo de los botones.
-        "Style: Default,DejaVu Sans,62,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,0,2,60,60,560,1",
-        "Style: Hook,DejaVu Sans,70,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,0,2,60,60,560,1",
-        "Style: Punch,DejaVu Sans,70,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,0,2,60,60,560,1",
+        # MarginV=420: centra el texto dentro del panel oscuro (que va de
+        # y=1152 a y=1920). A 560 quedaba pegado al borde de la imagen y
+        # dejaba un vacio negro enorme debajo. Los ~600px inferiores de un
+        # Reel los tapa la interfaz, y este valor sigue por encima de eso.
+        "Style: Default,DejaVu Sans,64,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,0,2,70,70,420,1",
+        "Style: Hook,DejaVu Sans,72,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,0,2,70,70,420,1",
+        "Style: Punch,DejaVu Sans,72,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,0,2,70,70,420,1",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]

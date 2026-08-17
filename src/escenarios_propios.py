@@ -42,7 +42,12 @@ REPARTO = {
     "cta":    ["mario"],
 }
 
-ALTURA_RELATIVA = {"general": 0.62, "medio": 0.95, "rostro": 0.80}
+ALTURA_RELATIVA = {"general": 0.62, "medio": 0.82, "rostro": 0.72}
+
+# Aire sobre la cabeza en los encuadres que NO muestran los pies. Anclarlos
+# por el suelo empujaba la cabeza fuera del cuadro por arriba: salian planos
+# de torso sin cara.
+AIRE_SUPERIOR = {"medio": 0.05, "rostro": 0.07}
 
 
 def _cargar_meta():
@@ -102,7 +107,13 @@ def _componer(fondo_path, per, meta, x_rel, encuadre, espejo):
     pies_y = int(H * suelo)
     x = int(W * x_rel - ancho / 2)
     x = max(-int(ancho * 0.12), min(x, W - int(ancho * 0.88)))
-    y = pies_y - alto
+
+    if encuadre in AIRE_SUPERIOR:
+        # Sin pies visibles se coloca desde ARRIBA, dejando aire sobre la
+        # cabeza. Anclarlo al suelo la sacaba del cuadro.
+        y = int(H * AIRE_SUPERIOR[encuadre])
+    else:
+        y = pies_y - alto
 
     lienzo = fondo
     # La sombra de contacto solo tiene sentido si se ven los pies.

@@ -13,6 +13,10 @@ contenido:
   resolucion: [1080, 1920]
   fps: 30
   estilo_visual: "cinematic_financial"
+  # "panel": imagen al 60% superior y texto en banda oscura abajo, sin solape.
+  # Esa banda es la misma zona donde van los graficos de cifras, asi que
+  # imagenes y datos comparten una sola reticula. "completa" = como antes.
+  maqueta: "panel"
   musica_fondo: true
   # Con ducking la musica puede ir mas alta: baja sola bajo la voz y llena
   # las pausas. A 0.15 fijo practicamente no se oia.
@@ -24,6 +28,17 @@ contenido:
   gemini_voz: "Puck"
   velocidad_voz: 1.2
   disclosure_texto: "Contenido generado con IA"
+
+elenco:
+  # Protagonista FIJO (la cara del canal, lo unico reconocible al deslizar)
+  # + secundarios NUEVOS en cada video (la variedad que evita la monotonia).
+  # Es como funcionan los formatos que aguantan: MrBeast rota concursantes
+  # pero nunca a Jimmy.
+  activado: true
+  secundarios: 2              # personajes nuevos por video (~$0.02 c/u)
+  clips_por_video: 2          # momentos animados (~$0.23 c/u a 480p)
+  resolucion_clip: "480p"     # 720p solo si el clip va a pantalla completa
+  max_creditos_por_video: 250 # tope de gasto; si se supera, escenarios locales
 
 hook_hablado:
   # El personaje abre el video moviendo los labios (SadTalker, GPU local).

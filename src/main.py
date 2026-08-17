@@ -98,11 +98,33 @@ def run(draft=False, skip_intelligence=False):
         return load_script()
 
     def paso_imagenes():
-        # 1º escenas propias (personajes del canal sobre escenarios propios),
-        # 2º generadores de imagen, 3º tarjetas de respaldo.
+        # Cadena de respaldo, de mejor a peor: escenas generadas con IA
+        # (protagonista fijo + secundarios nuevos) -> escenas compuestas en
+        # local -> generadores de imagen -> tarjetas de texto.
+        g = _guion_actual()
+        n = 0
+
+        try:
+            from src.escenas_ia import generar_escenas_ia, disponible as ia_ok
+            if ia_ok():
+                from src.utils import get_duration, audio_path
+                from src.video_assembler import _beat_timeline
+                from src.alineador import alinear
+                dur = get_duration(audio_path())
+                items = alinear(_beat_timeline(g, dur), audio_path(), dur)
+                n = generar_escenas_ia(g, items, today())
+        except Exception as e:
+            log.warning(f"Escenas con IA fallaron ({e}); se prueba el sistema local.")
+            n = 0
+
+        if n >= 8:
+            propias["ok"] = True
+            log.info(f"{n} escenas generadas con IA: se omite el b-roll de stock.")
+            return
+
         from src.escenarios_propios import generar_escenas
         try:
-            n = generar_escenas(_guion_actual())
+            n = generar_escenas(g)
         except Exception as e:
             log.warning(f"Escenas propias fallaron ({e}); se usa el sistema anterior.")
             n = 0
