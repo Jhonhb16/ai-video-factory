@@ -20,8 +20,31 @@ log = logging.getLogger("VideoFactory.Alineador")
 CACHE = Path("output/cache/alineado")
 
 
+# Whisper escribe los numeros con DIGITOS y el guion con letra: "cinco años"
+# se transcribe "5 años". Sin esta equivalencia la frase no empareja.
+NUMEROS = {
+    "cero": "0", "uno": "1", "un": "1", "una": "1", "dos": "2", "tres": "3",
+    "cuatro": "4", "cinco": "5", "seis": "6", "siete": "7", "ocho": "8",
+    "nueve": "9", "diez": "10", "once": "11", "doce": "12", "quince": "15",
+    "veinte": "20", "treinta": "30", "cuarenta": "40", "cincuenta": "50",
+    "sesenta": "60", "setenta": "70", "ochenta": "80", "noventa": "90",
+    "cien": "100", "mil": "1000",
+}
+
+
 def _normalizar(texto):
-    return "".join(c for c in texto.lower() if c.isalnum())
+    limpio = "".join(c for c in texto.lower() if c.isalnum())
+    return NUMEROS.get(limpio, limpio)
+
+
+def _parecidas(a, b):
+    """Tolera diferencias menores de transcripcion: 'llevas' vs 'lleva'."""
+    if a == b:
+        return True
+    if not a or not b:
+        return False
+    corta, larga = (a, b) if len(a) < len(b) else (b, a)
+    return len(corta) >= 4 and larga.startswith(corta) and len(larga) - len(corta) <= 2
 
 
 def _huella(audio):
@@ -73,20 +96,44 @@ def alinear(items, audio, duracion):
                         f"{len(items)} frases; se deja el reparto estimado.")
             return items
 
-        # Se busca la primera palabra de cada frase avanzando en el flujo,
-        # sin retroceder: asi las repeticiones no confunden el emparejado.
+        # Se avanza por el flujo de palabras sin retroceder, comparando las
+        # PRIMERAS PALABRAS de la frase (no solo una): con una sola, un
+        # "el" o un "tu" empareja en cualquier sitio.
+        #
+        # Y muy importante: si una frase no se encuentra, el cursor avanza
+        # igualmente de forma proporcional. Antes se quedaba clavado y una
+        # sola frase perdida hacia fallar TODAS las siguientes en cascada:
+        # se paso de 25/25 aciertos a 6/23 por ese motivo.
         cursor = 0
         anclas = []
-        for it in items:
-            trozos = it["txt"].split()
-            objetivo = _normalizar(trozos[0]) if trozos else ""
-            encontrado = None
-            for j in range(cursor, min(cursor + 30, len(palabras))):
-                if _normalizar(palabras[j][2]) == objetivo:
-                    encontrado = palabras[j][0]
-                    cursor = j + 1
-                    break
-            anclas.append(encontrado)
+        for n, it in enumerate(items):
+            trozos = [_normalizar(t) for t in it["txt"].split()[:3]]
+            trozos = [t for t in trozos if t]
+            restantes = max(1, len(items) - n)
+            ventana = max(40, int((len(palabras) - cursor) / restantes * 3))
+
+            mejor_pos, mejor_puntos = None, 0
+            for j in range(cursor, min(cursor + ventana, len(palabras))):
+                puntos = 0
+                for k, objetivo in enumerate(trozos):
+                    if j + k < len(palabras) and _parecidas(
+                            _normalizar(palabras[j + k][2]), objetivo):
+                        puntos += 1
+                if puntos > mejor_puntos:
+                    mejor_pos, mejor_puntos = j, puntos
+                    if puntos == len(trozos):
+                        break
+
+            # una sola palabra coincidente no basta si la frase tiene varias
+            minimo = 2 if len(trozos) >= 2 else 1
+            if mejor_pos is not None and mejor_puntos >= minimo:
+                anclas.append(palabras[mejor_pos][0])
+                cursor = mejor_pos + 1
+            else:
+                anclas.append(None)
+                # avance proporcional para no envenenar las frases siguientes
+                cursor = min(len(palabras) - 1,
+                             cursor + max(1, int((len(palabras) - cursor) / restantes)))
 
         emparejadas = sum(1 for a in anclas if a is not None)
         if emparejadas < len(items) * 0.6:
