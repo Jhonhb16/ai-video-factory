@@ -36,6 +36,45 @@ VETO_TONO = [
     "altruismo estupido", "altruismo tonto", "eres tonto", "eres estupido",
     "eres un ingenuo", "por pendejo", "por tonto", "por estupido",
 ]
+# Palabras que delatan que el guion se escribio como un informe y no como se
+# habla. El publico trabaja por horas y no lee: en cuanto aparece una de
+# estas, deja de entender y se va. Pedirlo en el prompt no basta, el LLM
+# recae en cuanto el tema es tecnico (que aqui es siempre).
+JERGA = [
+    # conectores de informe
+    "sin embargo", "no obstante", "por consiguiente", "adicionalmente",
+    "en funcion de", "cabe resaltar", "cabe mencionar", "dicho de otro modo",
+    "en terminos generales", "es fundamental", "es importante entender",
+    "asimismo", "por ende", "en definitiva", "de igual manera",
+    # verbos de oficina
+    "optimizar", "maximizar", "gestionar", "implementar", "potenciar",
+    "adquirir", "utilizar", "efectuar", "realizar un", "proceder a",
+    # tecnicismos financieros sin traducir
+    "tasa efectiva", "tasa nominal", "amortizacion", "liquidez", "solvencia",
+    "diversificar", "diversificacion", "activo financiero", "pasivo",
+    "rentabilidad", "capitalizacion", "apalancamiento", "patrimonio neto",
+    "flujo de caja", "interes compuesto", "volatilidad", "portafolio",
+]
+
+
+def _palabras_largas(texto):
+    """Porcentaje de palabras de 4+ silabas: el mejor chivato de que el
+    guion se fue a un registro que este publico no lee.
+
+    Se cuentan grupos de vocales, que en español aproxima bien las silabas
+    sin necesidad de un silabeador de verdad.
+    """
+    palabras = [p for p in re.findall(r"[a-zñáéíóúü]+", texto.lower()) if p]
+    if not palabras:
+        return 0.0
+    largas = 0
+    for p in palabras:
+        silabas = len(re.findall(r"[aeiouáéíóúü]+", p))
+        if silabas >= 4:
+            largas += 1
+    return largas / len(palabras) * 100
+
+
 LECTURA_PROHIBIDA = [
     "en este video", "a continuacion", "en conclusion", "es importante mencionar",
     "como hemos visto", "por lo tanto", "en primer lugar", "estimados",
@@ -107,6 +146,32 @@ semana, 15 dolares por cambiar un cheque, 8 por ciento de comision en una
 remesa.
 NO se asume estatus migratorio ni se dan consejos legales. Se habla de dinero.
 El publico NO es solo mexicano: evita modismos de un solo pais.
+
+=== COMO SE HABLA: LLANO, DE CALLE ===
+Le hablas a gente que trabaja con las manos y que no lee libros. Si una frase
+suena a folleto de banco, a clase o a noticiero, esta mal escrita. Se escribe
+como se habla en una cocina o en una obra, no como se escribe en un informe.
+- Palabras CORTAS y de todos los dias. Si una palabra no la usarias hablando
+  con tu tio, no va.
+- Frases CORTAS. Una idea por frase. Nada de "sin embargo", "no obstante",
+  "por consiguiente", "adicionalmente", "en funcion de".
+- CERO tecnicismos sin traducir. Si hay que decir uno, se dice y se explica
+  en el acto con palabras normales.
+    MAL:  "La tasa de interes anual efectiva asciende al 29 por ciento."
+    BIEN: "Te cobran 29 de cada 100 dolares al año. Solo por prestartelo."
+    MAL:  "Es fundamental diversificar para mitigar el riesgo."
+    BIEN: "No pongas todo en un solo lado. Si se cae, te caes con el."
+    MAL:  "Debes optimizar tu historial crediticio."
+    BIEN: "El banco lleva una libreta con todo lo que pagas. Eso es tu credito."
+- Nada de verbos de oficina: optimizar, maximizar, gestionar, implementar,
+  potenciar, generar, adquirir, utilizar. Se dice usar, conseguir, hacer.
+- Prohibido sonar a profesor: "es importante entender que", "cabe resaltar",
+  "en terminos generales", "dicho de otro modo".
+- Se permite y se agradece: el dicho, la comparacion con algo de la casa, la
+  exageracion. "Ese carro te va a costar mas que la boda de tu hermana."
+La prueba: si alguien que no termino la escuela lo entiende a la primera y
+sin repetir, esta bien escrito. Si tiene que parar a pensar que significo una
+palabra, ya lo perdiste.
 
 === QUIEN ES EL ENEMIGO (regla que no se rompe) ===
 El hook es agresivo con el SISTEMA, jamas con el espectador. El villano son
@@ -573,6 +638,24 @@ def _validar_y_ajustar(g, min_ganchos=2):
                         f"('{veto}'): o insulta al espectador o usa metafora "
                         f"de autolesion")
             return None
+
+    jerga = sorted({j for j in JERGA if j in texto_todo})
+    if jerga:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: habla como informe "
+                    f"y no como la gente ({', '.join(jerga[:4])})")
+        return None
+
+    # Techo calibrado con texto real, no a ojo: los guiones que suenan bien
+    # dan 2-6%, un folleto de banco da 45% y un noticiero 67%. La separacion
+    # es enorme, asi que el techo va en 12%: holgura de sobra para el guion
+    # bueno (con 6% se rechazaba uno que estaba perfecto) y sigue cazando el
+    # registro de informe por un factor de cuatro.
+    largas = _palabras_largas(texto_todo)
+    if largas > 12.0:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: {largas:.1f}% de "
+                    f"palabras largas (maximo 6%), demasiado culto para el publico")
+        return None
+    g["_palabras_largas"] = round(largas, 1)
 
     ganchos = _contar_microhooks(beats, g.get("siembras"))
     if ganchos < min_ganchos:

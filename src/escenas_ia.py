@@ -158,6 +158,37 @@ def _plan_escenas(guion, items, elenco):
     return plan
 
 
+# Cuantos planos como mucho pueden ser tarjeta. Sin tope, un guion cargado de
+# datos saldria medio video de graficos y perderia al personaje, que es lo que
+# da +23% de retencion frente a las imagenes sueltas.
+MAX_TARJETAS = 5
+
+
+def _tarjeta_de_cifra(item, indice, contador=[0]):
+    """Dibuja la tarjeta del beat si trae cifra. Devuelve la ruta o None."""
+    if indice == 1:
+        contador[0] = 0                       # video nuevo, cuenta a cero
+    if contador[0] >= MAX_TARJETAS:
+        return None
+    try:
+        from src.cifras import analizar
+        from src.graficos import tarjeta
+        info = analizar(item.get("txt") or item.get("t") or "")
+        if info.get("tipo") not in ("cifra", "porcentaje"):
+            return None
+        # una cifra de 0 o 1 no merece pantalla completa
+        if info.get("valor", 0) < 2:
+            return None
+        ruta = tarjeta(item.get("txt") or item.get("t") or "", info,
+                       item.get("k", "dato"), destino=SALIDA / f"img_{indice:03d}.png")
+        if ruta:
+            contador[0] += 1
+        return ruta
+    except Exception as e:
+        log.warning(f"No se pudo dibujar la tarjeta del plano {indice} ({e})")
+        return None
+
+
 def generar_escenas_ia(guion, items, fecha):
     """Crea output/images/img_XXX.png con elenco nuevo. Devuelve cuantas hizo."""
     if not disponible():
@@ -196,7 +227,17 @@ def generar_escenas_ia(guion, items, fecha):
 
     hechas = 0
     clips = {}
+    graficas = 0
     for i, it in enumerate(items):
+        # Los beats con cifra se resuelven con una tarjeta dibujada por
+        # codigo: cuesta CERO, la cifra se lee mejor que en una escena, y
+        # corta el ritmo visual. Cada una es una imagen que no se paga.
+        tarjeta = _tarjeta_de_cifra(it, hechas + 1)
+        if tarjeta:
+            hechas += 1
+            graficas += 1
+            continue
+
         p = plan[i]
         ref = refs.get(p["personaje"]) or next(iter(refs.values()))
         prompt = (f"the same character from the reference image, {p['escena']}, {ESTILO}")
@@ -229,6 +270,8 @@ def generar_escenas_ia(guion, items, fecha):
     # corrida; en ese caso no se informa en vez de mostrar un numero absurdo
     gastado = (saldo - (kie.creditos() or saldo)) if saldo else 0
     coste = f", ~{gastado:.0f} creditos = ${gastado*0.005:.2f}" if gastado > 0 else ""
+    ahorro = (f", {graficas} tarjetas dibujadas por codigo "
+              f"(~${graficas*4*0.005:.2f} no gastados)") if graficas else ""
     log.info(f"{hechas} escenas con elenco nuevo "
-             f"({len(refs)} personajes, {len(clips)} clips{coste})")
+             f"({len(refs)} personajes, {len(clips)} clips{coste}{ahorro})")
     return hechas
