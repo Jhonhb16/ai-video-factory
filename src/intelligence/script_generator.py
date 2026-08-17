@@ -59,6 +59,12 @@ adelante, para dar una razon concreta de seguir viendo.
 Cada micro-hook sembrado SE PAGA despues, sin excepcion. Prometer y no
 cumplir quema al espectador para siempre.
 
+MONEDA Y CONTEXTO: SIEMPRE pesos colombianos y realidades locales (la
+quincena, el 15 y el 30, el arriendo, la tienda de la esquina, el Icetex).
+PROHIBIDO hablar en dolares o poner ejemplos gringos: "un cafe de tres
+dolares" no le dice nada a nadie aqui. Se dice "un cafe de seis mil pesos".
+Las cifras deben ser creibles para un sueldo minimo colombiano.
+
 DATO EXTRAORDINARIO (minimo 1): una cifra que haga levantar la ceja, concreta
 y sorprendente. No sirve "la mitad se va en lo basico", que ya lo sabe todo
 el mundo. Sirve el tipo de dato que uno le cuenta a otro:
