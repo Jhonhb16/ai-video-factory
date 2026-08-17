@@ -37,6 +37,8 @@ PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es
 PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
 HOOK (3s): curiosidad / identificacion / experiencia vivida.
+PROHIBIDO repetir el hook en los primeros beats. El hook ya se dijo: los beats
+siguientes AVANZAN la historia, no la vuelven a contar troceada.
 ESTRUCTURA: hook → setup (2-3) → 3 bloques comicos con dato → callback → CTA.
 TOTAL: 20-24 beats, 190-215 palabras. Minimo 4 beats k=punch y 3 k=dato.
 EJEMPLO DEL TONO EXACTO:
@@ -152,10 +154,48 @@ def _normalizar_beats(g):
     return out
 
 
+def _palabras_utiles(texto):
+    return {p.strip(".,;:¡!¿?\"'").lower() for p in texto.split() if len(p) > 3}
+
+
+def _quitar_eco_del_hook(hook, beats, umbral=0.7, ventana=4):
+    """Elimina los primeros beats que solo repiten el hook troceado.
+
+    Caso real detectado escuchando el video: hook "Cobras tu quincena, pagas
+    deudas y te quedan diez pesos", y a continuacion los beats "Cobras tu
+    quincena." / "Pagas deudas." / "Te quedan diez pesos...". Los primeros 10
+    segundos decian lo mismo dos veces, justo donde se decide la retencion.
+
+    El umbral es 0.7 y no 0.6 a proposito: "Te quedan diez pesos y mucha
+    dignidad" comparte el 60% con el hook pero aporta el remate comico, y a
+    0.6 se perdia el chiste. Mejor dejar pasar un eco leve que borrar un
+    punchline.
+    """
+    if not hook:
+        return beats
+    ph = _palabras_utiles(hook)
+    if not ph:
+        return beats
+    limpios = list(beats)
+    quitados = 0
+    while limpios and quitados < ventana:
+        pb = _palabras_utiles(limpios[0]["t"])
+        if pb and len(ph & pb) / len(pb) >= umbral:
+            log.info(f"Beat que repite el hook, fuera: {limpios[0]['t']!r}")
+            limpios.pop(0)
+            quitados += 1
+        else:
+            break
+    return limpios
+
+
 def _validar_y_ajustar(g):
     if not isinstance(g, dict):
         return None
     beats = _normalizar_beats(g)
+    if not beats:
+        return None
+    beats = _quitar_eco_del_hook(g.get("hook", ""), beats)
     if not beats:
         return None
     palabras = sum(len(b["t"].split()) for b in beats)
