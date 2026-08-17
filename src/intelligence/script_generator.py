@@ -75,6 +75,16 @@ def _palabras_largas(texto):
     return largas / len(palabras) * 100
 
 
+# Recaidas al marco de Latinoamerica. El prompt ya las prohibe y aun asi se
+# colaron en 1 de cada 30 guiones ("dos mas dos son tu quincena").
+#
+# OJO: "pesos" NO entra aqui, aunque parezca lo obvio. En remesas es la
+# palabra correcta y necesaria: "te dan menos pesos por cada dolar" es
+# justamente el tema del video. Vetarla habria roto el contenido bueno.
+VETO_LATAM = [
+    "quincena", "arriendo", "icetex", "salario minimo", "el 15 y el 30",
+    "tienda de la esquina",
+]
 LECTURA_PROHIBIDA = [
     "en este video", "a continuacion", "en conclusion", "es importante mencionar",
     "como hemos visto", "por lo tanto", "en primer lugar", "estimados",
@@ -638,6 +648,13 @@ def _validar_y_ajustar(g, min_ganchos=2):
                         f"('{veto}'): o insulta al espectador o usa metafora "
                         f"de autolesion")
             return None
+
+    latam = sorted({v for v in VETO_LATAM if v in texto_todo})
+    if latam:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: recae en el marco "
+                    f"de Latinoamerica ({', '.join(latam)}); el publico esta "
+                    f"en Estados Unidos")
+        return None
 
     jerga = sorted({j for j in JERGA if j in texto_todo})
     if jerga:
