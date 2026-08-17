@@ -29,6 +29,17 @@ contenido:
   velocidad_voz: 1.2
   disclosure_texto: "Contenido generado con IA"
 
+elenco:
+  # Protagonista FIJO (la cara del canal, lo unico reconocible al deslizar)
+  # + secundarios NUEVOS en cada video (la variedad que evita la monotonia).
+  # Es como funcionan los formatos que aguantan: MrBeast rota concursantes
+  # pero nunca a Jimmy.
+  activado: true
+  secundarios: 2              # personajes nuevos por video (~$0.02 c/u)
+  clips_por_video: 2          # momentos animados (~$0.23 c/u a 480p)
+  resolucion_clip: "480p"     # 720p solo si el clip va a pantalla completa
+  max_creditos_por_video: 250 # tope de gasto; si se supera, escenarios locales
+
 hook_hablado:
   # El personaje abre el video moviendo los labios (SadTalker, GPU local).
   # Solo afecta a la apertura: el resto sigue con planos fijos y camara.
