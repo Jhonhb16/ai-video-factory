@@ -84,15 +84,34 @@ def disponible():
     return _cfg()["activado"] and kie.disponible()
 
 
+def _lista_de(respuesta, clave):
+    """El LLM devuelve unas veces {"clave":[...]} y otras la lista pelada.
+
+    Costo una corrida entera: reventaba con 'list object has no attribute get'
+    y el video salio con 25 escenas identicas de relleno.
+    """
+    if isinstance(respuesta, list):
+        return respuesta
+    if isinstance(respuesta, dict):
+        if isinstance(respuesta.get(clave), list):
+            return respuesta[clave]
+        # a veces envuelve la lista con otro nombre
+        for v in respuesta.values():
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                return v
+    return []
+
+
 def _inventar_elenco(guion, n):
     texto = guion.get("hook", "") + "\n" + "\n".join(
         b["t"] for b in (guion.get("beats") or [])[:12])
     try:
         r = chat_json(SYS_ELENCO,
                       f"TEMA: {guion.get('titulo','')}\nGUION:\n{texto}\n\n"
-                      f"Inventa exactamente {n} personajes. El primero es el "
-                      f"protagonista.", temperature=0.9, max_tokens=1500)
-        elenco = [e for e in (r.get("elenco") or []) if e.get("descripcion")][:n]
+                      f"Inventa exactamente {n} secundarios.",
+                      temperature=0.9, max_tokens=1500)
+        elenco = [e for e in _lista_de(r, "elenco")
+                  if isinstance(e, dict) and e.get("descripcion")][:n]
         return elenco or None
     except Exception as e:
         log.warning(f"No se pudo inventar el elenco ({str(e)[:100]})")
@@ -124,7 +143,8 @@ def _plan_escenas(guion, items, elenco):
         r = chat_json(SYS_ESCENAS,
                       f"ELENCO:\n{fichas}\n\nFRASES:\n{lista}",
                       temperature=0.7, max_tokens=4000)
-        plan = {e["i"]: e for e in (r.get("escenas") or []) if "i" in e}
+        plan = {e["i"]: e for e in _lista_de(r, "escenas")
+                if isinstance(e, dict) and "i" in e}
     except Exception as e:
         log.warning(f"No se pudo planificar escenas ({str(e)[:100]})")
         plan = {}

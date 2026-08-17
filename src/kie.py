@@ -128,8 +128,10 @@ def generar_imagen(prompt, referencia=None, proporcion="9:16", nombre=None):
     if not disponible():
         return None
     try:
+        # La cache va SOLO por la huella del prompt: si el nombre entrara en
+        # el archivo, dos escenas con el mismo prompt se pagarian dos veces.
         clave = _huella(MODELO_IMAGEN, prompt, referencia, proporcion)
-        destino = CACHE / f"{nombre or 'img'}_{clave}.png"
+        destino = CACHE / f"img_{clave}.png"
         if destino.exists() and destino.stat().st_size > 5000:
             log.info(f"kie: imagen en cache ({destino.name})")
             return destino
@@ -160,7 +162,7 @@ def generar_clip(prompt, primer_fotograma, segundos=4, resolucion="480p", nombre
         return None
     try:
         clave = _huella(MODELO_CLIP, prompt, primer_fotograma, segundos, resolucion)
-        destino = CACHE / f"{nombre or 'clip'}_{clave}.mp4"
+        destino = CACHE / f"clip_{clave}.mp4"
         if destino.exists() and destino.stat().st_size > 20000:
             log.info(f"kie: clip en cache ({destino.name})")
             return destino
