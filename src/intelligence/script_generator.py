@@ -81,6 +81,39 @@ def _palabras_largas(texto):
 # OJO: "pesos" NO entra aqui, aunque parezca lo obvio. En remesas es la
 # palabra correcta y necesaria: "te dan menos pesos por cada dolar" es
 # justamente el tema del video. Vetarla habria roto el contenido bueno.
+# Los hooks que este mismo prompt usa como ejemplo. El LLM los copia LITERAL:
+# en una tirada de 30, cuatro guiones abrieron con "mandaste veinte mil
+# dolares a casa" y eran, en la practica, el mismo video. Es la segunda vez
+# que pasa (antes con "lo peor viene ahora mismo"): todo ejemplo concreto que
+# se le pone, lo calca. Por eso se comprueba, no se pide.
+# Estadisticas de poblacion y citas a instituciones. El modelo las fabrica con
+# tono de estudio ("segun la CFPB, doce millones caen cada año") y no hay forma
+# de comprobarlas; en una tirada de 30 salieron 29 afirmaciones asi, dos de
+# ellas contradiciendose dentro del MISMO guion. Aqui las oye gente que va a
+# tomar decisiones caras, asi que no pasan.
+#
+# NO afecta a los precios ni al interes ("ocho por ciento de comision",
+# "veintinueve por ciento de interes"): esos son verificables y son el
+# contenido del canal. Lo que se veta es la estadistica sobre PERSONAS y la
+# cita a una fuente que el guionista no ha leido.
+VETO_DATO = re.compile(
+    r"\bseg[uú]n\b|\bde acuerdo (a|con)\b"
+    r"|\b(cfpb|forbes|banco mundial|consumer financial|reserva federal|fdic|ftc)\b"
+    r"|\b(\w+|\d+)\s+de\s+cada\s+(diez|cien|\d+)\b"
+    r"|\b\d{1,3}\s*(?:%|por\s+ciento)\s+de\s+(los|las|la\s+gente|migrantes|"
+    r"inquilinos|trabajadores|personas|bancos|prestamistas)\b"
+    r"|\b(noventa|ochenta|setenta|sesenta|cincuenta)\s+por\s+ciento\s+de\s+"
+    r"(los|las|inquilinos|migrantes|trabajadores|personas|casos|bancos)\b",
+    re.IGNORECASE)
+
+EJEMPLOS_HOOK = [
+    "mandaste veinte mil dolares a casa",
+    "llevas seis años trabajando aqui y el banco",
+    "te cobran quince dolares por darte tu propio dinero",
+    "pagas renta puntual hace cinco años",
+    "llevas cinco años trabajando aqui y no tienes ni un mes guardado",
+    "tu jefe sabe que no puedes renunciar",
+]
 VETO_LATAM = [
     "quincena", "arriendo", "icetex", "salario minimo", "el 15 y el 30",
     "tienda de la esquina",
@@ -198,6 +231,29 @@ que ayudar este mal.
 PROHIBIDO el lenguaje de autolesion o muerte como metafora ("suicidarte",
 "matarte", "morirte de hambre"): las plataformas lo penalizan y ademas suena
 a burla de una situacion real.
+
+=== DE DONDE SALEN LAS CIFRAS (regla dura) ===
+Solo se permiten cifras de DOS clases:
+1. PRECIOS Y TARIFAS que el espectador puede comprobar el mismo: lo que cobra
+   la ventanilla por cambiar un cheque, el interes del lote de carros, el
+   cargo por sobregiro, su renta.
+2. ARITMETICA HECHA EN EL PROPIO GUION a partir de la anterior: "quince
+   dolares por semana son setecientos ochenta al año". El espectador puede
+   rehacer la cuenta, asi que la cifra se sostiene sola.
+
+PROHIBIDO inventar estadisticas de poblacion y citar instituciones:
+  MAL: "Segun la CFPB, doce millones caen aqui cada año."
+  MAL: "El setenta por ciento de los inquilinos sufre ansiedad."
+  MAL: "Ocho de cada diez caen en la misma trampa."
+  BIEN: "Cuarenta dolares de comision por cada cien que te prestan."
+  BIEN: "Eso son cuatrocientos por ciento al año."
+No tienes forma de saber si esas estadisticas son ciertas, y aqui las oye
+gente que va a tomar decisiones caras con lo que digas. Una cifra inventada
+con tono de estudio hace daño de verdad. Si no puedes derivarla de un precio
+concreto, no va.
+COHERENCIA: dos cifras del mismo guion no pueden contradecirse. Si dices que
+la comision es del ocho por ciento, no digas despues que llega menos del diez
+por ciento del dinero.
 
 DATO EXTRAORDINARIO (minimo 1): una cifra que haga levantar la ceja, concreta
 y sorprendente. No sirve "la mitad se va en lo basico", que ya lo sabe todo
@@ -492,6 +548,19 @@ MICRO_HOOK = re.compile(
     re.IGNORECASE)
 
 
+def _solapan(a, b):
+    """Cuanto comparten dos frases, de 0 a 1, sobre la mas corta.
+
+    Se mide contra la MAS CORTA a proposito: el ejemplo del prompt suele ser
+    un trozo del hook generado, y dividir por la larga lo dejaba pasar.
+    """
+    pa = {p for p in a.split() if len(p) > 2}
+    pb = {p for p in _sin_tildes(b).lower().split() if len(p) > 2}
+    if not pa or not pb:
+        return 0.0
+    return len(pa & pb) / min(len(pa), len(pb))
+
+
 def _sin_tildes(texto):
     return "".join(c for c in unicodedata.normalize("NFD", str(texto))
                    if unicodedata.category(c) != "Mn")
@@ -647,6 +716,21 @@ def _validar_y_ajustar(g, min_ganchos=2):
             log.warning(f"Guion '{g.get('titulo')}' descartado: tono vetado "
                         f"('{veto}'): o insulta al espectador o usa metafora "
                         f"de autolesion")
+            return None
+
+    inventado = VETO_DATO.search(texto_todo)
+    if inventado:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: cifra que no se "
+                    f"puede comprobar ('{inventado.group(0)}'); solo valen "
+                    f"precios reales y la aritmetica hecha en el guion")
+        return None
+
+    hook_limpio = " ".join(_sin_tildes(g.get("hook", "")).lower().split())
+    for ej in EJEMPLOS_HOOK:
+        if _solapan(hook_limpio, ej) >= 0.7:
+            log.warning(f"Guion '{g.get('titulo')}' descartado: el hook copia "
+                        f"un ejemplo del prompt ('{ej[:38]}...'); los ejemplos "
+                        f"marcan el nivel, no son texto para reutilizar")
             return None
 
     latam = sorted({v for v in VETO_LATAM if v in texto_todo})

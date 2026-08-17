@@ -10,6 +10,23 @@ from .matrix_generator import generar_matrix
 from .script_generator import generar_guiones_desde_matrix, get_next_topic
 from .script_simulator import seleccionar_mejor
 
+
+def _publicados_recientes(n=30):
+    """Titulo y hook de los ultimos guiones, para que el showrunner sepa que
+    se conto ya. El registro csv solo guarda titulos, y el titulo no basta:
+    dos guiones con titulo distinto pueden abrir con la misma frase."""
+    salida = []
+    try:
+        for ruta in sorted(Path("output/scripts").glob("*.json"))[-n:]:
+            g = json.loads(ruta.read_text(encoding="utf-8"))
+            if isinstance(g, list):
+                g = g[0] if g else {}
+            if g.get("hook"):
+                salida.append({"titulo": g.get("titulo", ""), "hook": g["hook"]})
+    except Exception as e:
+        log.warning(f"No se pudo leer el historial de guiones ({e})")
+    return salida
+
 log = logging.getLogger("VideoFactory.Intelligence")
 
 REFERENTES_FILE = Path("output/intelligence/referentes.json")
@@ -121,9 +138,12 @@ def producir_guion_del_dia(config):
     # publicar siempre, la matrix no reemplaza publicar.
     maximo = int(config["intelligence"].get("maximos_reintentos_reescritura", 2))
     aprobados = []
+    # Lo ya publicado entra como contexto: si no, el showrunner no puede
+    # saber que hoy toca el cuarto video seguido sobre lo mismo.
+    previos = _publicados_recientes()
     for g in guiones:
         for intento in range(maximo):
-            r = revisar_paquete(g)
+            r = revisar_paquete(g, previos + aprobados)
             if r.get("veredicto") != "REWRITE" or not r.get("cambios"):
                 break
             log.info(f"Reescritura {intento+1}/{maximo}: {r.get('nota_corta','')[:90]}")

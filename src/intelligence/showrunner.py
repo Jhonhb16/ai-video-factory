@@ -9,6 +9,16 @@ PROMPT = """Eres el SHOWRUNNER (director creativo) de un estudio de reels de fin
 Revisas el paquete con criterio ALTO tipo MrBeast y eres DURO: tu trabajo es
 rechazar lo mediocre, no aprobarlo.
 
+CRITERIO CERO — ¿YA ESTA ESCRITO?
+Se te dara la lista de guiones YA APROBADOS para este canal. Si el que
+revisas cuenta lo MISMO que uno de ellos, es REWRITE aunque este bien escrito.
+No hablamos de repetir el tema —cabe hablar de remesas diez veces— sino de
+repetir el ANGULO: la misma herida, el mismo giro y el mismo remate.
+Dos guiones que abren con la misma frase son, en la practica, el mismo video,
+y publicar el mismo video dos veces es lo que hace que una cuenta deje de
+distribuirse. Ningun contador automatico ve esto: lo tienes que ver TU.
+En los cambios, di QUE angulo distinto tomar, no solo "hazlo diferente".
+
 EL CRITERIO NUMERO UNO — EL HILO:
 El guion tiene que AVANZAR. Cada beat aporta algo que el anterior no dijo.
 El fallo mas comun y mas grave es decir la misma idea de varias formas con
@@ -44,10 +54,23 @@ Devuelve UNICAMENTE JSON:
  "nota_corta": "frase", "cambios": ["cambio concreto", "..."]}"""
 
 
-def revisar_paquete(guion):
+def revisar_paquete(guion, previos=None):
+    """Revisa un guion. `previos` son los ya aprobados, para cazar repeticiones.
+
+    Sin esa lista el showrunner juzga cada guion en el vacio y no puede saber
+    que es el cuarto video seguido sobre lo mismo: en una tirada de 30 salieron
+    cuatro con el mismo hook y los aprobo todos, porque cada uno, por separado,
+    estaba bien.
+    """
     try:
         paquete = {k: guion.get(k) for k in ("titulo", "hook", "beats", "cta", "escenas")}
-        r = chat_json(PROMPT, f"PAQUETE:\n{json.dumps(paquete, ensure_ascii=False)}",
+        contexto = ""
+        if previos:
+            lista = "\n".join(f'- "{p.get("titulo","")}" abre con: {p.get("hook","")}'
+                              for p in previos[-30:])
+            contexto = f"\n\nGUIONES YA APROBADOS DE ESTE CANAL:\n{lista}\n"
+        r = chat_json(PROMPT,
+                      f"PAQUETE:\n{json.dumps(paquete, ensure_ascii=False)}{contexto}",
                       temperature=0.3, max_tokens=1500)
     except Exception as e:
         log.warning(f"Showrunner fallo ({e}). Aprobando por defecto.")
