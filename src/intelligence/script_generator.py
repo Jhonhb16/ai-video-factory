@@ -16,6 +16,14 @@ PROHIBIDAS = [
     "rendimiento asegurado", "duplica tu dinero", "sin riesgo",
     "libertad financiera en", "secreto que los bancos",
 ]
+# Ejemplos tan usados en contenido de finanzas que ya no dicen nada. El
+# concepto los penaliza, pero se colaban DENTRO de los guiones igualmente.
+EJEMPLOS_QUEMADOS = [
+    "cafe diario", "café diario", "el cafe de cada", "el café de cada",
+    "gasto hormiga", "gastos hormiga", "regla 50/30/20", "regla 50 30 20",
+    "metodo de sobres", "método de sobres", "pagate a ti mismo primero",
+    "págate a ti mismo primero",
+]
 LECTURA_PROHIBIDA = [
     "en este video", "a continuacion", "en conclusion", "es importante mencionar",
     "como hemos visto", "por lo tanto", "en primer lugar", "estimados",
@@ -71,7 +79,28 @@ el mundo. Sirve el tipo de dato que uno le cuenta a otro:
   "Un cafe de doce mil al dia son cuatro millones al año."
   "Pagar el minimo de la tarjeta convierte una deuda de un millon en tres."
 ESTRUCTURA DEL HILO: hook -> promesa de lo que se va a revelar -> desarrollo
-que avanza -> el dato que sorprende -> pago de las promesas -> callback.
+que avanza -> el dato que sorprende -> pago de las promesas -> CIERRE EPICO.
+
+=== EL CIERRE TIENE QUE RESOLVER EL HOOK ===
+El hook abre una herida; el final la cierra. Los DOS O TRES ULTIMOS BEATS
+deben volver a la ESCENA EXACTA del hook y rematarla. No vale una moraleja
+generica: "la regla es simple, si no pagas todo pagas doble" no resuelve
+nada, es un consejo de manual y el espectador se queda sin la descarga que
+se le prometio.
+
+El cierre epico hace TRES cosas:
+1. VUELVE a la misma escena o premisa con la que abriste, con sus palabras.
+2. LA REMATA con la consecuencia maxima y una CIFRA concreta.
+3. REENCUADRA: lo que parecia una cosa resulta ser otra.
+
+Ejemplo. Hook: "Si vas a pagar el minimo este mes, mira esto antes."
+  MAL:  "La regla es simple: si no pagas todo, pagas doble."
+  BIEN: "Ese minimo que ibas a pagar hoy son ochenta mil pesos."
+        "En tres años habras pagado dos millones por unos tenis."
+        "El minimo no es una ayuda del banco. Es el negocio del banco."
+
+La ultima linea del guion es la MAS FUERTE de todo el video. Si no lo es,
+esta mal colocada.
 PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es importante".
 PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
@@ -336,6 +365,28 @@ def _redundancia(beats, ventana=4, umbral=0.55):
     return repetidos
 
 
+def _callback_al_hook(hook, beats, ultimos=4):
+    """¿Los ultimos beats vuelven a la escena del hook?
+
+    Se mide por vocabulario compartido con el hook. No es perfecto —un
+    callback puede reformular sin repetir palabras— pero pilla el caso
+    frecuente: terminar con una moraleja generica que no tiene nada que ver
+    con la escena con la que se abrio.
+    """
+    if not hook or not beats:
+        return 0
+    def utiles(t):
+        return {p.strip(".,;:¡!¿?").lower() for p in t.split() if len(p) > 3}
+    ph = utiles(hook)
+    if not ph:
+        return 0
+    coincidencias = 0
+    for b in beats[-ultimos:]:
+        if ph & utiles(b["t"]):
+            coincidencias += 1
+    return coincidencias
+
+
 def _validar_y_ajustar(g):
     if not isinstance(g, dict):
         return None
@@ -371,6 +422,11 @@ def _validar_y_ajustar(g):
     if any(p in texto for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura")
         return None
+    quemados = [q for q in EJEMPLOS_QUEMADOS if q in texto]
+    if quemados:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: ejemplo quemado "
+                    f"({quemados[0]})")
+        return None
     # medido: 251 palabras dieron 84.7s. ~2,96 palabras/segundo => 70s ≈ 207.
     # El techo se sube a 250 porque los guiones agresivos salen mas densos y
     # se rechazaban 2 de cada 3 por pasarse cinco palabras: tirar buen
@@ -399,8 +455,18 @@ def _validar_y_ajustar(g):
                     f"(nada que prometa al espectador seguir viendo)")
         return None
 
+    # El cierre debe volver a la escena del hook. Sin callback, el video
+    # termina en una moraleja de manual y el espectador se queda sin la
+    # descarga que el hook le prometio.
+    cierre = _callback_al_hook(g.get("hook", ""), beats)
+    if not cierre:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: el final no "
+                    f"resuelve el hook (sin callback en los ultimos beats)")
+        return None
+
     g["_redundancia"] = repes
     g["_microhooks"] = ganchos
+    g["_callback"] = cierre
 
     g["beats"] = beats
     g["guion"] = "\n".join(b["t"] for b in beats)

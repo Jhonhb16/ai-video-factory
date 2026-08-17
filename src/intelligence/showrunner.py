@@ -30,7 +30,13 @@ Resto del checklist:
 4. ESCALADA: el ultimo tercio es mas fuerte que el primero.
 5. COMEDIA: minimo 4 momentos de risa, con callback al hook.
 6. RITMO: ninguna linea > 14 palabras; cero tono de ensayo.
-7. CIERRE: punch final + ensenanza + CTA que genera comentarios.
+7. CIERRE EPICO — pesa tanto como el hook: los ultimos beats vuelven a la
+   ESCENA EXACTA del hook, la rematan con la consecuencia maxima y una cifra,
+   y reencuadran (lo que parecia una cosa era otra). Una moraleja generica
+   tipo "si no pagas todo, pagas doble" es REWRITE: el espectador aguanto 70
+   segundos y se queda sin la descarga que se le prometio. La ultima linea
+   tiene que ser la MAS FUERTE del video.
+8. CTA que genera comentarios.
 
 Se honesto: si esta flojo, REWRITE con cambios concretos y accionables.
 Devuelve UNICAMENTE JSON:
