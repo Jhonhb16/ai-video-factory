@@ -50,13 +50,36 @@ ALTURA_RELATIVA = {"general": 0.62, "medio": 0.82, "rostro": 0.72}
 AIRE_SUPERIOR = {"medio": 0.05, "rostro": 0.07}
 
 
+# Los fondos pueden ser .png o .jpg: los de 1080x1920 pesan 2 MB en PNG y
+# 200 KB en JPG sin diferencia visible, pero las referencias de personaje
+# necesitan el alfa. Se admiten ambos y se ordena para que el reparto de
+# escenarios sea estable entre corridas.
+EXT_FONDO = ("*.png", "*.jpg", "*.jpeg")
+
+
+def _fondos():
+    vistos = {}
+    for patron in EXT_FONDO:
+        for p in ESCENARIOS_DIR.glob(patron):
+            vistos.setdefault(p.stem, p)     # si hay png y jpg, gana uno solo
+    return sorted(vistos.values(), key=lambda p: p.stem)
+
+
 def _cargar_meta():
+    """Metadatos por fondo, indexados SIN extension.
+
+    El json venia con claves tipo "sala-sofa_1.png". Al pasar los fondos a
+    jpg la clave dejaba de coincidir y no fallaba nada: simplemente todos los
+    personajes volvian al suelo por defecto y se encaramaban a los muebles
+    otra vez. Se normaliza para que la extension deje de importar.
+    """
     ruta = ESCENARIOS_DIR / "escenarios.json"
     if not ruta.exists():
         return {}
     try:
         datos = json.loads(ruta.read_text(encoding="utf-8"))
-        return {k: v for k, v in datos.items() if not k.startswith("_")}
+        return {Path(k).stem: v for k, v in datos.items()
+                if not k.startswith("_")}
     except Exception as e:
         log.warning(f"escenarios.json ilegible ({e}); se usan valores por defecto.")
         return {}
@@ -67,7 +90,7 @@ def disponible():
     if not PERSONAJES_DIR.exists() or not ESCENARIOS_DIR.exists():
         return False
     cuerpos = list(PERSONAJES_DIR.glob("*/cuerpo.png"))
-    fondos = list(ESCENARIOS_DIR.glob("*.png"))
+    fondos = _fondos()
     return len(cuerpos) >= 1 and len(fondos) >= 1
 
 
@@ -138,7 +161,7 @@ def generar_escenas(guion, n_planos=None, semilla=None):
 
     rnd = random.Random(semilla if semilla is not None else 777)
     meta_todos = _cargar_meta()
-    fondos = sorted(p for p in ESCENARIOS_DIR.glob("*.png"))
+    fondos = _fondos()
     # slug = nombre de la carpeta que contiene cuerpo.png
     disponibles = {p.parent.name for p in PERSONAJES_DIR.glob("*/cuerpo.png")}
     if not disponibles:
@@ -186,7 +209,7 @@ def generar_escenas(guion, n_planos=None, semilla=None):
         libres = [f for f in fondos if f != ultimo_fondo] or fondos
         if encuadre == "general":
             aptos = [f for f in libres
-                     if not meta_todos.get(f.name, {}).get("solo_cerca")]
+                     if not meta_todos.get(f.stem, {}).get("solo_cerca")]
             libres = aptos or libres
         fondo = libres[(i * 3 + 1) % len(libres)]
 
@@ -194,7 +217,7 @@ def generar_escenas(guion, n_planos=None, semilla=None):
         if per is None:
             continue
 
-        meta = meta_todos.get(fondo.name, {})
+        meta = meta_todos.get(fondo.stem, {})
         zona = meta.get("zona", [0.30, 0.70])
         x_rel = zona[0] + (zona[1] - zona[0]) * ((i % 3) / 2.0)
         espejo = (i % 4 == 3)

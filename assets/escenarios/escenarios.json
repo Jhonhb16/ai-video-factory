@@ -1,19 +1,19 @@
 {
   "_doc": "Metadatos por fondo. 'suelo' es la altura relativa (0=arriba, 1=abajo) donde deben quedar los PIES del personaje. Sin esto, un valor fijo pone a los personajes flotando o encaramados sobre los muebles.",
 
-  "sala-general_1.png":      { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
-  "sala-general_2.png":      { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
-  "sala-sofa_1.png":         { "suelo": 0.92, "zona": [0.28, 0.72], "lugar": "sala" },
-  "sala-sofa_2.png":         { "suelo": 0.92, "zona": [0.28, 0.72], "lugar": "sala" },
-  "sala-cocina_1.png":       { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
-  "sala-cocina_2.png":       { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
-  "sala-contrapicado_1.png": { "suelo": 0.86, "zona": [0.32, 0.68], "lugar": "sala" },
-  "sala-contrapicado_2.png": { "suelo": 0.86, "zona": [0.32, 0.68], "lugar": "sala" },
+  "sala-general_1":      { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
+  "sala-general_2":      { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
+  "sala-sofa_1":         { "suelo": 0.92, "zona": [0.28, 0.72], "lugar": "sala" },
+  "sala-sofa_2":         { "suelo": 0.92, "zona": [0.28, 0.72], "lugar": "sala" },
+  "sala-cocina_1":       { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
+  "sala-cocina_2":       { "suelo": 0.90, "zona": [0.30, 0.70], "lugar": "sala" },
+  "sala-contrapicado_1": { "suelo": 0.86, "zona": [0.32, 0.68], "lugar": "sala" },
+  "sala-contrapicado_2": { "suelo": 0.86, "zona": [0.32, 0.68], "lugar": "sala" },
 
-  "cocina_1.png": { "suelo": 0.99, "zona": [0.30, 0.70], "lugar": "cocina",
+  "cocina_1": { "suelo": 0.99, "zona": [0.30, 0.70], "lugar": "cocina",
                     "solo_cerca": true,
                     "nota": "mesa ocupando el primer plano: NO admite cuerpo entero, el personaje queda de pie sobre la mesa" },
-  "cocina_2.png": { "suelo": 0.99, "zona": [0.30, 0.70], "lugar": "cocina",
+  "cocina_2": { "suelo": 0.99, "zona": [0.30, 0.70], "lugar": "cocina",
                     "solo_cerca": true,
                     "nota": "mesa ocupando el primer plano: NO admite cuerpo entero, el personaje queda de pie sobre la mesa" }
 }
