@@ -1,6 +1,7 @@
 """Guionista de COMEDIA financiera: beats tipados (punch/dato) + expansion + rewrite."""
 import csv
 import re
+import unicodedata
 import json
 import hashlib
 import logging
@@ -211,7 +212,7 @@ def generar_guiones_desde_matrix(n=3, tema_semana=None):
     orden = FAMILIAS_HOOK[FAMILIAS_HOOK.index(base):] + FAMILIAS_HOOK[:FAMILIAS_HOOK.index(base)]
     log.info(f"Familias de hook para hoy: {orden[:n]} (recientes: {_familias_recientes()})")
 
-    validos = []
+    validos, crudos = [], []
     for i in range(n):
         familia = orden[i % len(orden)]
         try:
@@ -224,11 +225,25 @@ def generar_guiones_desde_matrix(n=3, tema_semana=None):
         except Exception as e:
             log.warning(f"Guion #{i+1} fallo al generar: {e}")
             continue
+        crudos.append(json.loads(json.dumps(g)))   # copia: validar muta el dict
         g = _validar_y_ajustar(g)
         if g:
             validos.append(g)
 
-    log.info(f"{len(validos)}/{n} guiones validos generados")
+    # Red de seguridad: se piden 2 micro-hooks, pero un canal diario no puede
+    # quedarse mudo porque hoy ninguno llego. Si no sobrevivio ninguno, se
+    # repesca con el liston en 1 antes que no publicar.
+    if not validos and crudos:
+        rescatados = [x for x in (_validar_y_ajustar(c, min_ganchos=1)
+                                  for c in crudos) if x]
+        if rescatados:
+            log.warning(f"Ningun guion llego a 2 micro-hooks; se repescan "
+                        f"{len(rescatados)} con 1. Revisar el prompt si se repite.")
+            validos = rescatados
+
+    log.info(f"{len(validos)}/{n} guiones validos generados"
+             + (f" (micro-hooks: {[v.get('_microhooks') for v in validos]})"
+                if validos else ""))
     return validos
 
 
@@ -327,13 +342,37 @@ def _quitar_eco_del_hook(hook, beats, umbral=0.7, ventana=4):
 
 
 # Marcas de promesa sembrada: dan al espectador una razon concreta de seguir.
+#
+# OJO con las tildes: los patrones van SIN ellas y el texto del guion viene
+# CON ellas, asi que hay que normalizar antes de buscar. Mientras no se hizo,
+# "lo peor viene mas adelante" o "el ultimo te va a doler" no contaban como
+# micro-hook y los guiones salian con la mitad de los que en realidad tenian.
 MICRO_HOOK = re.compile(
     r"\b(el|la)\s+(tercer|tercera|segundo|segunda|ultimo|ultima|peor)\b"
-    r"|\bviene\s+(ahora|en|al)\b"
+    r"|\bviene\s+(ahora|en|al|lo)\b|\baqui\s+viene\b"
     r"|\bal\s+final\b|\bmas\s+adelante\b|\ben\s+\w+\s+segundos\b"
     r"|\bespera\b|\bpero\s+lo\s+(peor|bueno)\b|\bno\s+te\s+(lo\s+)?(van a |)dicen?\b"
-    r"|\bhay\s+(un|una|tres|dos|cuatro)\b.*\b(que|y)\b",
+    r"|\bhay\s+(un|una|tres|dos|cuatro)\b.*\b(que|y)\b"
+    # promesa explicita de que falta algo
+    r"|\b(todavia|aun)\s+(hay|falta|no)\b|\b(y\s+)?eso\s+no\s+es\s+(lo\s+)?(peor|todo)\b"
+    r"|\bhay\s+algo\s+(mas|peor)\b|\bfalta\s+lo\s+(peor|mejor)\b"
+    r"|\blo\s+que\s+(sigue|viene)\b|\bya\s+vas\s+a\s+ver\b"
+    # instruccion directa de quedarse
+    r"|\bquedate\b|\bno\s+te\s+vayas\b|\bantes\s+de\s+que\s+te\s+vayas\b"
+    r"|\bguarda\s+(este|ese)\s+dato\b|\bpresta\s+atencion\b|\bapunta\b"
+    # cuenta atras / enumeracion pendiente
+    r"|\bnumero\s+(dos|tres|cuatro|cinco)\b|\bel\s+truco\s+esta\b"
+    r"|\ben\s+un\s+momento\b|\bya\s+casi\b",
     re.IGNORECASE)
+
+
+def _sin_tildes(texto):
+    return "".join(c for c in unicodedata.normalize("NFD", str(texto))
+                   if unicodedata.category(c) != "Mn")
+
+
+def _contar_microhooks(beats):
+    return sum(1 for b in beats if MICRO_HOOK.search(_sin_tildes(b["t"])))
 
 
 def _redundancia(beats, ventana=4, umbral=0.55):
@@ -387,7 +426,7 @@ def _callback_al_hook(hook, beats, ultimos=4):
     return coincidencias
 
 
-def _validar_y_ajustar(g):
+def _validar_y_ajustar(g, min_ganchos=2):
     if not isinstance(g, dict):
         return None
     beats = _normalizar_beats(g)
@@ -449,10 +488,15 @@ def _validar_y_ajustar(g):
                     f"repiten ideas ya dichas (no avanza)")
         return None
 
-    ganchos = sum(1 for b in beats if MICRO_HOOK.search(b["t"]))
-    if ganchos == 0:
-        log.warning(f"Guion '{g.get('titulo')}' descartado: sin micro-hooks "
-                    f"(nada que prometa al espectador seguir viendo)")
+    # Dos promesas sembradas es el minimo para que la curva no se hunda a la
+    # mitad: una sola se paga pronto y a partir de ahi no queda razon de
+    # seguir. Con min_ganchos=1 se acepta lo que haya, para no dejar al canal
+    # sin video el dia que ninguno llegue a dos.
+    ganchos = _contar_microhooks(beats)
+    if ganchos < min_ganchos:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: {ganchos} "
+                    f"micro-hook(s), se piden {min_ganchos} "
+                    f"(poco que prometa al espectador seguir viendo)")
         return None
 
     # El cierre debe volver a la escena del hook. Sin callback, el video
