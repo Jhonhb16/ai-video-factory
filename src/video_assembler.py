@@ -34,6 +34,11 @@ COLOR_PANEL = "0x070b12"
 COLOR_ACENTO = {"punch": "0xff4d6d", "dato": "0x22e39a", "hook": "0xffc857",
                 "cta": "0x22e39a", "normal": "0x22e39a"}
 
+# En ASS el color va en BGR, al reves que en HTML. Resaltado de la palabra
+# que suena en ese instante, segun el tipo de beat.
+COLOR_ASS = {"punch": "&H00FFFF&", "dato": "&H9AE322&", "hook": "&H57C8FF&",
+             "cta": "&H9AE322&", "normal": "&H9AE322&"}
+
 
 def _agrupar_en_planos(items):
     """Convierte beats en planos, uniendo los demasiado cortos.
@@ -187,7 +192,13 @@ def assemble_video():
     elif MEDIA_DIR.exists() and (MEDIA_DIR / "musica.mp3").exists():
         music = MEDIA_DIR / "musica.mp3"
 
-    _generar_subtitulos(items)
+    try:
+        from src.alineador import palabras_por_frase
+        reparto = palabras_por_frase(items, audio)
+    except Exception as e:
+        log.warning(f"Sin timing por palabra ({str(e)[:80]}); rotulos por frase.")
+        reparto = None
+    _generar_subtitulos(items, reparto)
 
     # Un efecto por corte, elegido por el tipo de beat. Antes eran cero:
     # las señales existian pero los archivos nunca se descargaron.
@@ -281,9 +292,24 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
             recorte = ("" if zoom <= 1.001 else
                        f"crop=iw/{zoom:.2f}:ih/{zoom:.2f}:"
                        f"(iw-iw/{zoom:.2f})/2:(ih-ih/{zoom:.2f})*{centro_y:.2f},")
+
+            # WHIP: el plano entra sobredimensionado y se clava en 4 fotogramas.
+            # tmix mezcla fotogramas consecutivos: sobre un plano quieto no
+            # cambia nada, pero sobre este movimiento brusco genera el motion
+            # blur de verdad. Asi el corte se SIENTE, en vez de ser un salto seco.
+            if t > 0:
+                frames_totales = max(2, int(paso * fps))
+                golpe = (f"zoompan=z='if(lt(on,4),1.5-on*0.125,1.0)'"
+                         f":x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2'"
+                         f":d={frames_totales}:s=1080x1920:fps={fps},"
+                         f"tmix=frames=3:weights='1 1 1',")
+            else:
+                golpe = ""
+
             parte = seg_dir / f"seg_hook_{t}.mp4"
             run_cmd(["ffmpeg", "-y", "-ss", f"{t*paso:.3f}", "-i", str(hook),
-                     "-t", f"{paso:.3f}", "-vf", recorte + vf,
+                     "-t", f"{paso:.3f}", "-vf", recorte + vf + "," + golpe.rstrip(",")
+                     if golpe else recorte + vf,
                      "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
                      "-pix_fmt", "yuv420p", str(parte)])
             trozos.append(parte)
@@ -377,7 +403,53 @@ def _ts(s):
     return f"{h}:{m:02d}:{sec:05.2f}"
 
 
-def _generar_subtitulos(items):
+def _ass_ts(s):
+    s = max(0.0, s)
+    h = int(s // 3600)
+    m = int((s % 3600) // 60)
+    return f"{h}:{m:02d}:{s % 60:05.2f}"
+
+
+def _generar_subtitulos_cineticos(items, reparto):
+    """Rotulos que aparecen PALABRA A PALABRA, cada una a su tiempo real.
+
+    No es un subtitulo: es motion graphics. Cada palabra entra con un golpe
+    de escala en el instante exacto en que se pronuncia, y la que suena se
+    resalta. Esto solo es posible porque el alineador da el timing por
+    palabra; con tiempos estimados habria que inventarse el ritmo y se notaria.
+
+    Se emite una linea por palabra con la frase entera, resaltando la actual.
+    Son muchas lineas pero libass las gestiona sin problema.
+    """
+    eventos = []
+    for it, palabras in zip(items, reparto):
+        if not palabras:
+            continue
+        tipo = it.get("k", "normal")
+        estilo = "Punch" if tipo == "punch" else ("Hook" if tipo == "hook" else "Default")
+        realce = COLOR_ASS.get(tipo, COLOR_ASS["normal"])
+        textos = [p[2] for p in palabras]
+
+        for i, (ini, fin, _) in enumerate(palabras):
+            sig = palabras[i + 1][0] if i + 1 < len(palabras) else it["end"]
+            partes = []
+            for j, w in enumerate(textos):
+                if j > i:
+                    break                      # aun no se ha dicho
+                if j == i:
+                    # golpe de escala en la palabra que suena ahora
+                    partes.append(
+                        f"{{\\c{realce}\\fscx118\\fscy118"
+                        f"\\t(0,110,\\fscx100\\fscy100)}}{w}{{\\r{estilo}}}")
+                else:
+                    partes.append(w)
+            eventos.append(
+                f"Dialogue: 0,{_ass_ts(ini)},{_ass_ts(max(sig, ini + 0.08))},"
+                f"{estilo},,0,0,0,,{' '.join(partes)}")
+    return eventos
+
+
+def _generar_subtitulos(items, reparto=None):
     if not items:
         return
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
@@ -396,11 +468,20 @@ def _generar_subtitulos(items):
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
-    for it in items:
-        style = {"hook": "Hook", "punch": "Punch", "cta": "Punch"}.get(it["k"], "Default")
-        lines.append(f"Dialogue: 0,{_ts(it['start'])},{_ts(it['end'])},{style},,0,0,0,,{it['txt']}")
+    # Con timing por palabra se animan; sin el, se cae al subtitulo por frase.
+    cineticos = _generar_subtitulos_cineticos(items, reparto) if reparto else []
+    if cineticos:
+        lines += cineticos
+        log.info(f"Rotulos cineticos: {len(cineticos)} palabras animadas "
+                 f"en {sum(1 for r in reparto if r)} frases")
+    else:
+        for it in items:
+            style = {"hook": "Hook", "punch": "Punch",
+                     "cta": "Punch"}.get(it["k"], "Default")
+            lines.append(f"Dialogue: 0,{_ts(it['start'])},{_ts(it['end'])},"
+                         f"{style},,0,0,0,,{it['txt']}")
+        log.info(f"Subtitulos con enfasis: {len(items)} lineas")
     (MEDIA_DIR / "subs.ass").write_text("\n".join(lines), encoding="utf-8")
-    log.info(f"Subtitulos con enfasis: {len(items)} lineas")
 
 
 def _final_encode(segments, audio, music, music_vol, out, sfx_cues):

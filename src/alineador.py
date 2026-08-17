@@ -81,6 +81,41 @@ def _palabras_reales(audio, modelo="base"):
     return palabras
 
 
+def palabras_por_frase(items, audio):
+    """Reparte las palabras oidas entre las frases, con su tiempo real.
+
+    Es lo que permite animar los rotulos palabra a palabra: cada una entra
+    justo cuando se pronuncia. Sin esto habria que inventarse el ritmo.
+    Devuelve una lista paralela a items: [[(palabra, ini, fin), ...], ...]
+    """
+    try:
+        palabras = _palabras_reales(audio)
+    except Exception as e:
+        log.warning(f"Sin timings por palabra ({str(e)[:80]})")
+        return [[] for _ in items]
+    if not palabras:
+        return [[] for _ in items]
+
+    reparto = []
+    cursor = 0
+    for n, it in enumerate(items):
+        fin_frase = it["end"]
+        # las palabras que caen dentro de la ventana de esta frase
+        grupo = []
+        j = cursor
+        while j < len(palabras) and palabras[j][0] < fin_frase - 0.02:
+            if palabras[j][1] > it["start"] - 0.15:
+                grupo.append(palabras[j])
+            j += 1
+        cursor = max(cursor, j)
+        reparto.append(grupo)
+
+    vacias = sum(1 for g in reparto if not g)
+    if vacias:
+        log.info(f"{len(items)-vacias}/{len(items)} frases con timing por palabra")
+    return reparto
+
+
 def alinear(items, audio, duracion):
     """Devuelve los items con start/end corregidos contra la voz real.
 

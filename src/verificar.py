@@ -138,12 +138,27 @@ def revisar_sincronia():
         h, m, s = t.split(":")
         return int(h) * 3600 + int(m) * 60 + float(s)
 
+    # Con rotulos cineticos hay una linea POR PALABRA, y cada una repite la
+    # frase entera mas la palabra nueva. Solo interesa el arranque de cada
+    # frase: si el texto es una extension del anterior, es continuacion.
+    # (Tercera vez que hay que revisar esto: cuando cambia lo que se mide,
+    # la medicion hay que revisarla tambien.)
+    # Se toma el TIEMPO de la primera linea de cada frase y el TEXTO de la
+    # ultima, que es la unica que trae la frase completa. Con el texto de la
+    # primera solo habria una palabra ("Y", "El") y volveria a emparejar en
+    # el sitio equivocado.
     lineas = []
+    previo = ""
     for linea in ass.read_text(encoding="utf-8").splitlines():
-        if linea.startswith("Dialogue:"):
-            p = linea.split(",", 9)
-            texto = re.sub(r"\{[^}]*\}", "", p[9]).replace("\\N", " ").strip()
+        if not linea.startswith("Dialogue:"):
+            continue
+        p = linea.split(",", 9)
+        texto = " ".join(re.sub(r"\{[^}]*\}", "", p[9]).replace("\\N", " ").split())
+        if previo and texto.startswith(previo[:max(8, len(previo) - 2)]):
+            lineas[-1] = (lineas[-1][0], texto)   # misma frase, texto mas completo
+        else:
             lineas.append((seg(p[1]), texto))
+        previo = texto
 
     # Se compara la secuencia de las primeras palabras, igual que el
     # alineador. Con una sola palabra, un "y" o un "el" empareja dentro de
