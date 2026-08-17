@@ -246,7 +246,18 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
 
         # Reencodear a los mismos parametros que los demas segmentos y
         # recortar a la duracion EXACTA de los planos que sustituye.
-        destino = seg_dir / "seg_hook.mp4"
+        # La apertura hablada se trocea en varios encuadres del MISMO render:
+        # general, medio y primer plano. Mario lo detecto viendo el video —
+        # 11 segundos sin un solo corte, y justo al inicio, que es donde se
+        # decide si alguien se queda. Es el "zoom cut" de toda la vida: un
+        # salto de escala despierta al cerebro y no cuesta ni un centavo,
+        # porque sale del mismo material.
+        ENCUADRES_HOOK = [
+            (1.00, 0.50),   # general
+            (1.32, 0.42),   # medio, ligeramente arriba
+            (1.62, 0.36),   # primer plano
+            (1.18, 0.46),   # vuelta a medio
+        ]
         maqueta = (load_config().get("contenido", {}) or {}).get("maqueta", "panel")
         if maqueta == "panel":
             # La apertura tambien obedece la reticula: si no, los primeros
@@ -261,19 +272,31 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
         else:
             vf = (f"scale=1080:1920:force_original_aspect_ratio=increase,"
                   f"crop=1080:1920,setsar=1,fps={fps}")
-        run_cmd(["ffmpeg", "-y", "-i", str(hook), "-t", f"{dur_hook:.3f}",
-                 "-vf", vf,
-                 "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                 "-pix_fmt", "yuv420p", str(destino)])
+        # un trozo por encuadre, de ~2.8s, para que la apertura tenga cortes
+        n_trozos = max(1, min(len(ENCUADRES_HOOK), int(dur_hook / 2.8)))
+        paso = dur_hook / n_trozos
+        trozos = []
+        for t in range(n_trozos):
+            zoom, centro_y = ENCUADRES_HOOK[t % len(ENCUADRES_HOOK)]
+            recorte = ("" if zoom <= 1.001 else
+                       f"crop=iw/{zoom:.2f}:ih/{zoom:.2f}:"
+                       f"(iw-iw/{zoom:.2f})/2:(ih-ih/{zoom:.2f})*{centro_y:.2f},")
+            parte = seg_dir / f"seg_hook_{t}.mp4"
+            run_cmd(["ffmpeg", "-y", "-ss", f"{t*paso:.3f}", "-i", str(hook),
+                     "-t", f"{paso:.3f}", "-vf", recorte + vf,
+                     "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                     "-pix_fmt", "yuv420p", str(parte)])
+            trozos.append(parte)
 
-        real = get_duration(destino)
-        if abs(real - dur_hook) > 0.25:
+        real = sum(get_duration(p) for p in trozos)
+        if abs(real - dur_hook) > 0.35:
             log.warning(f"El hook hablado quedo en {real:.2f}s en vez de "
                         f"{dur_hook:.2f}s; se descarta para no desincronizar.")
             return segments
 
-        log.info(f"Apertura hablada: sustituye {corte} planos ({dur_hook:.1f}s)")
-        return [destino] + segments[corte:]
+        log.info(f"Apertura hablada: sustituye {corte} planos ({dur_hook:.1f}s) "
+                 f"en {n_trozos} encuadres")
+        return trozos + segments[corte:]
 
     except Exception as e:
         log.warning(f"No se pudo aplicar la apertura hablada ({e}); sigue normal.")

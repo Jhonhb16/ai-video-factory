@@ -92,13 +92,23 @@ def producir_guion_del_dia(config):
     from .showrunner import revisar_paquete
     from .script_generator import aplicar_cambios
     log.info("SHOWRUNNER revisando el paquete...")
+    # Se reescribe hasta N veces mientras el showrunner lo rechace. Antes solo
+    # se daba UNA pasada, aunque la configuracion ya preveia varias; con un
+    # showrunner exigente una sola no basta para arreglar el hilo.
+    # Al agotarse los intentos se produce igual: la regla del proyecto es
+    # publicar siempre, la matrix no reemplaza publicar.
+    maximo = int(config["intelligence"].get("maximos_reintentos_reescritura", 2))
     aprobados = []
     for g in guiones:
-        r = revisar_paquete(g)
-        if r.get("veredicto") == "REWRITE" and r.get("cambios"):
+        for intento in range(maximo):
+            r = revisar_paquete(g)
+            if r.get("veredicto") != "REWRITE" or not r.get("cambios"):
+                break
+            log.info(f"Reescritura {intento+1}/{maximo}: {r.get('nota_corta','')[:90]}")
             g2 = aplicar_cambios(g, r["cambios"])
-            if g2:
-                g = g2
+            if not g2:
+                break
+            g = g2
         aprobados.append(g)
 
     log.info("Simulando guiones contra la matrix...")

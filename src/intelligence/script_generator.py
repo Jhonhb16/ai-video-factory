@@ -38,6 +38,34 @@ nivel toda la pieza. Cada bloque sube la apuesta respecto al anterior: mas
 incomodo, mas concreto o mas absurdo. El ultimo tercio es el mas fuerte.
 REGLA DEL EXTRANO: por cada linea preguntate si a alguien que no te conoce le
 importaria lo que se dice ahi. Si la respuesta es no, esa linea no se escribe.
+
+=== LO MAS IMPORTANTE: EL HILO ===
+El guion NO es una lista de frases ingeniosas sobre un tema. Es UNA historia
+o UN argumento que AVANZA. Cada beat tiene que aportar informacion nueva.
+PROHIBIDO decir lo mismo de cuatro formas distintas. Ejemplo de lo que NO se
+puede hacer, todo seguido:
+  "Llevas cinco años cobrando y sigues sin colchon."
+  "Vives esperando el deposito como si fuera un milagro."
+  "Llega el dinero, respiras y a los tres dias vuela."
+  "Tu cuenta parece zona de guerra."
+Son cuatro maneras de decir "no te alcanza". El espectador ya lo entendio en
+la primera y se va, porque nada le promete algo que todavia no sabe.
+
+MICRO-HOOKS OBLIGATORIOS (minimo 2): promesas sembradas que solo se pagan mas
+adelante, para dar una razon concreta de seguir viendo.
+  "Son tres fugas. La tercera es la que te esta costando el sueldo entero."
+  "Y hay un numero que no te van a decir en el banco. Va al final."
+  "Lo peor no es eso. Lo peor viene en diez segundos."
+Cada micro-hook sembrado SE PAGA despues, sin excepcion. Prometer y no
+cumplir quema al espectador para siempre.
+
+DATO EXTRAORDINARIO (minimo 1): una cifra que haga levantar la ceja, concreta
+y sorprendente. No sirve "la mitad se va en lo basico", que ya lo sabe todo
+el mundo. Sirve el tipo de dato que uno le cuenta a otro:
+  "Un cafe de doce mil al dia son cuatro millones al año."
+  "Pagar el minimo de la tarjeta convierte una deuda de un millon en tres."
+ESTRUCTURA DEL HILO: hook -> promesa de lo que se va a revelar -> desarrollo
+que avanza -> el dato que sorprende -> pago de las promesas -> callback.
 PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es importante".
 PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
@@ -263,6 +291,45 @@ def _quitar_eco_del_hook(hook, beats, umbral=0.7, ventana=4):
     return limpios
 
 
+# Marcas de promesa sembrada: dan al espectador una razon concreta de seguir.
+MICRO_HOOK = re.compile(
+    r"\b(el|la)\s+(tercer|tercera|segundo|segunda|ultimo|ultima|peor)\b"
+    r"|\bviene\s+(ahora|en|al)\b"
+    r"|\bal\s+final\b|\bmas\s+adelante\b|\ben\s+\w+\s+segundos\b"
+    r"|\bespera\b|\bpero\s+lo\s+(peor|bueno)\b|\bno\s+te\s+(lo\s+)?(van a |)dicen?\b"
+    r"|\bhay\s+(un|una|tres|dos|cuatro)\b.*\b(que|y)\b",
+    re.IGNORECASE)
+
+
+def _redundancia(beats, ventana=4, umbral=0.55):
+    """Cuenta beats que repiten LITERALMENTE palabras de otro cercano.
+
+    LIMITE IMPORTANTE: solo detecta repeticion de vocabulario. La repeticion
+    que de verdad mata la retencion es la de SIGNIFICADO — decir "sigues sin
+    colchon", "esperas el deposito como un milagro", "a los tres dias vuela"
+    y "tu cuenta parece zona de guerra" son cuatro formas de decir "no te
+    alcanza" sin compartir una sola palabra. Eso no lo puede ver un contador:
+    lo juzga el showrunner, que entiende el sentido.
+    """
+    def utiles(t):
+        return {p.strip(".,;:¡!¿?").lower() for p in t.split() if len(p) > 4}
+
+    repetidos = 0
+    for i, b in enumerate(beats):
+        pa = utiles(b["t"])
+        if len(pa) < 3:
+            continue
+        for j in range(max(0, i - ventana), i):
+            pb = utiles(beats[j]["t"])
+            if not pb:
+                continue
+            solape = len(pa & pb) / min(len(pa), len(pb))
+            if solape >= umbral:
+                repetidos += 1
+                break
+    return repetidos
+
+
 def _validar_y_ajustar(g):
     if not isinstance(g, dict):
         return None
@@ -312,6 +379,22 @@ def _validar_y_ajustar(g):
     if sum(1 for b in beats if b["k"] == "punch") < 2:
         log.warning(f"Guion '{g.get('titulo')}' sin suficientes punchlines")
         return None
+
+    # Sin hilo no hay retencion: un guion que repite la misma idea se abandona
+    repes = _redundancia(beats)
+    if repes > max(2, len(beats) * 0.15):
+        log.warning(f"Guion '{g.get('titulo')}' descartado: {repes} beats "
+                    f"repiten ideas ya dichas (no avanza)")
+        return None
+
+    ganchos = sum(1 for b in beats if MICRO_HOOK.search(b["t"]))
+    if ganchos == 0:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: sin micro-hooks "
+                    f"(nada que prometa al espectador seguir viendo)")
+        return None
+
+    g["_redundancia"] = repes
+    g["_microhooks"] = ganchos
 
     g["beats"] = beats
     g["guion"] = "\n".join(b["t"] for b in beats)
