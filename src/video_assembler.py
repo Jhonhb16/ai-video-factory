@@ -283,11 +283,36 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
         else:
             vf = (f"scale=1080:1920:force_original_aspect_ratio=increase,"
                   f"crop=1080:1920,setsar=1,fps={fps}")
-        # un trozo por encuadre, de ~2.8s, para que la apertura tenga cortes
-        n_trozos = max(1, min(len(ENCUADRES_HOOK), int(dur_hook / 2.8)))
+        # ALTERNAR con planos de recurso. Antes se troceaba el mismo render en
+        # tres encuadres, pero seguia siendo LA MISMA IMAGEN 11 segundos:
+        # cambiaba la escala, no lo que se ve. Ahora la cabeza parlante se
+        # intercala con las escenas que esos planos iban a mostrar, que es lo
+        # que hace cualquier montaje real: el presentador habla y se corta a
+        # imagen de apoyo mientras su voz sigue.
+        n_trozos = max(2, min(5, int(dur_hook / 2.4)))
         paso = dur_hook / n_trozos
+
+        # Los planos de recurso se cogen de LEJOS en la secuencia, no de los
+        # inmediatamente siguientes: el planificador suele dar escenas muy
+        # parecidas a beats consecutivos, asi que cortar al de al lado cambia
+        # el plano pero no lo que se ve. Al final vuelven a aparecer en su
+        # sitio, y verlos antes funciona como adelanto de lo que viene.
+        lejanos = [segments[i] for i in
+                   (corte + 4, corte + 9, corte + 14, corte + 6)
+                   if i < len(segments)]
+        recursos = lejanos or [segments[i] for i in range(1, min(corte, len(segments)))]
         trozos = []
         for t in range(n_trozos):
+            # impares = plano de recurso, si hay; pares = cabeza parlante
+            if t % 2 == 1 and recursos:
+                origen = recursos[(t // 2) % len(recursos)]
+                parte = seg_dir / f"seg_hook_{t}.mp4"
+                run_cmd(["ffmpeg", "-y", "-stream_loop", "1", "-i", str(origen),
+                         "-t", f"{paso:.3f}", "-an",
+                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                         "-pix_fmt", "yuv420p", str(parte)])
+                trozos.append(parte)
+                continue
             zoom, centro_y = ENCUADRES_HOOK[t % len(ENCUADRES_HOOK)]
             recorte = ("" if zoom <= 1.001 else
                        f"crop=iw/{zoom:.2f}:ih/{zoom:.2f}:"
@@ -320,8 +345,9 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
                         f"{dur_hook:.2f}s; se descarta para no desincronizar.")
             return segments
 
-        log.info(f"Apertura hablada: sustituye {corte} planos ({dur_hook:.1f}s) "
-                 f"en {n_trozos} encuadres")
+        hablados = sum(1 for t in range(n_trozos) if t % 2 == 0 or not recursos)
+        log.info(f"Apertura: {n_trozos} planos de ~{paso:.1f}s "
+                 f"({hablados} hablando, {n_trozos-hablados} de recurso)")
         return trozos + segments[corte:]
 
     except Exception as e:
