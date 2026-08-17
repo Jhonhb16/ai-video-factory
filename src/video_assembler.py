@@ -34,6 +34,11 @@ COLOR_PANEL = "0x070b12"
 COLOR_ACENTO = {"punch": "0xff4d6d", "dato": "0x22e39a", "hook": "0xffc857",
                 "cta": "0x22e39a", "normal": "0x22e39a"}
 
+# En ASS el color va en BGR, al reves que en HTML. Resaltado de la palabra
+# que suena en ese instante, segun el tipo de beat.
+COLOR_ASS = {"punch": "&H00FFFF&", "dato": "&H9AE322&", "hook": "&H57C8FF&",
+             "cta": "&H9AE322&", "normal": "&H9AE322&"}
+
 
 def _agrupar_en_planos(items):
     """Convierte beats en planos, uniendo los demasiado cortos.
@@ -187,7 +192,13 @@ def assemble_video():
     elif MEDIA_DIR.exists() and (MEDIA_DIR / "musica.mp3").exists():
         music = MEDIA_DIR / "musica.mp3"
 
-    _generar_subtitulos(items)
+    try:
+        from src.alineador import palabras_por_frase
+        reparto = palabras_por_frase(items, audio)
+    except Exception as e:
+        log.warning(f"Sin timing por palabra ({str(e)[:80]}); rotulos por frase.")
+        reparto = None
+    _generar_subtitulos(items, reparto)
 
     # Un efecto por corte, elegido por el tipo de beat. Antes eran cero:
     # las señales existian pero los archivos nunca se descargaron.
@@ -258,34 +269,81 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
             (1.62, 0.36),   # primer plano
             (1.18, 0.46),   # vuelta a medio
         ]
+        # La apertura obedece la MISMA maqueta que el resto: si no, los
+        # primeros segundos llevan otra reticula y el video se contradice a si
+        # mismo a los diez segundos. Aqui se quedo la version vieja (imagen
+        # recortada + panel solido) cuando el resto ya pintaba a sangre.
+        vf = (f"scale=1080:1920:force_original_aspect_ratio=increase,"
+              f"crop=1080:1920,setsar=1,fps={fps}")
         maqueta = (load_config().get("contenido", {}) or {}).get("maqueta", "panel")
+        capa_hook = None
         if maqueta == "panel":
-            # La apertura tambien obedece la reticula: si no, los primeros
-            # segundos llevan el subtitulo encima de la cara y el video
-            # arranca contradiciendo su propio diseño.
-            alto = int(1920 * ALTO_IMAGEN) // 2 * 2
-            vf = (f"scale=1080:{alto}:force_original_aspect_ratio=increase,"
-                  f"crop=1080:{alto},setsar=1,fps={fps},"
-                  f"pad=1080:1920:0:0:color={COLOR_PANEL},"
-                  f"drawbox=x=0:y={alto}:w=1080:h=8:"
-                  f"color={COLOR_ACENTO['hook']}@1:t=fill")
-        else:
-            vf = (f"scale=1080:1920:force_original_aspect_ratio=increase,"
-                  f"crop=1080:1920,setsar=1,fps={fps}")
-        # un trozo por encuadre, de ~2.8s, para que la apertura tenga cortes
-        n_trozos = max(1, min(len(ENCUADRES_HOOK), int(dur_hook / 2.8)))
+            from src.degradado import asegurar as asegurar_degradado
+            capa_hook = asegurar_degradado()
+        # ALTERNAR con planos de recurso. Antes se troceaba el mismo render en
+        # tres encuadres, pero seguia siendo LA MISMA IMAGEN 11 segundos:
+        # cambiaba la escala, no lo que se ve. Ahora la cabeza parlante se
+        # intercala con las escenas que esos planos iban a mostrar, que es lo
+        # que hace cualquier montaje real: el presentador habla y se corta a
+        # imagen de apoyo mientras su voz sigue.
+        n_trozos = max(2, min(5, int(dur_hook / 2.4)))
         paso = dur_hook / n_trozos
+
+        # Los planos de recurso se cogen de LEJOS en la secuencia, no de los
+        # inmediatamente siguientes: el planificador suele dar escenas muy
+        # parecidas a beats consecutivos, asi que cortar al de al lado cambia
+        # el plano pero no lo que se ve. Al final vuelven a aparecer en su
+        # sitio, y verlos antes funciona como adelanto de lo que viene.
+        lejanos = [segments[i] for i in
+                   (corte + 4, corte + 9, corte + 14, corte + 6)
+                   if i < len(segments)]
+        recursos = lejanos or [segments[i] for i in range(1, min(corte, len(segments)))]
         trozos = []
         for t in range(n_trozos):
+            # impares = plano de recurso, si hay; pares = cabeza parlante
+            if t % 2 == 1 and recursos:
+                origen = recursos[(t // 2) % len(recursos)]
+                parte = seg_dir / f"seg_hook_{t}.mp4"
+                run_cmd(["ffmpeg", "-y", "-stream_loop", "1", "-i", str(origen),
+                         "-t", f"{paso:.3f}", "-an",
+                         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                         "-pix_fmt", "yuv420p", str(parte)])
+                trozos.append(parte)
+                continue
             zoom, centro_y = ENCUADRES_HOOK[t % len(ENCUADRES_HOOK)]
             recorte = ("" if zoom <= 1.001 else
                        f"crop=iw/{zoom:.2f}:ih/{zoom:.2f}:"
                        f"(iw-iw/{zoom:.2f})/2:(ih-ih/{zoom:.2f})*{centro_y:.2f},")
+
+            # WHIP: el plano entra sobredimensionado y se clava en 4 fotogramas.
+            # tmix mezcla fotogramas consecutivos: sobre un plano quieto no
+            # cambia nada, pero sobre este movimiento brusco genera el motion
+            # blur de verdad. Asi el corte se SIENTE, en vez de ser un salto seco.
+            if t > 0:
+                frames_totales = max(2, int(paso * fps))
+                golpe = (f"zoompan=z='if(lt(on,4),1.5-on*0.125,1.0)'"
+                         f":x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2'"
+                         f":d={frames_totales}:s=1080x1920:fps={fps},"
+                         f"tmix=frames=3:weights='1 1 1',")
+            else:
+                golpe = ""
+
             parte = seg_dir / f"seg_hook_{t}.mp4"
-            run_cmd(["ffmpeg", "-y", "-ss", f"{t*paso:.3f}", "-i", str(hook),
-                     "-t", f"{paso:.3f}", "-vf", recorte + vf,
-                     "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-                     "-pix_fmt", "yuv420p", str(parte)])
+            cadena = recorte + vf + ("," + golpe.rstrip(",") if golpe else "")
+            cmd = ["ffmpeg", "-y", "-ss", f"{t*paso:.3f}", "-i", str(hook)]
+            if capa_hook:
+                # El degradado entra como input aparte y se superpone al final.
+                # eof_action=repeat: es un PNG de un solo fotograma y tiene que
+                # aguantar todo el trozo.
+                cmd += ["-i", str(capa_hook), "-filter_complex",
+                        f"[0:v]{cadena}[b];[b][1:v]overlay=0:0:eof_action=repeat[v]",
+                        "-map", "[v]"]
+            else:
+                cmd += ["-vf", cadena]
+            cmd += ["-t", f"{paso:.3f}",
+                    "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                    "-pix_fmt", "yuv420p", str(parte)]
+            run_cmd(cmd)
             trozos.append(parte)
 
         real = sum(get_duration(p) for p in trozos)
@@ -294,8 +352,9 @@ def _aplicar_hook_hablado(segments, planos, audio, images, fps, seg_dir):
                         f"{dur_hook:.2f}s; se descarta para no desincronizar.")
             return segments
 
-        log.info(f"Apertura hablada: sustituye {corte} planos ({dur_hook:.1f}s) "
-                 f"en {n_trozos} encuadres")
+        hablados = sum(1 for t in range(n_trozos) if t % 2 == 0 or not recursos)
+        log.info(f"Apertura: {n_trozos} planos de ~{paso:.1f}s "
+                 f"({hablados} hablando, {n_trozos-hablados} de recurso)")
         return trozos + segments[corte:]
 
     except Exception as e:
@@ -308,33 +367,32 @@ def _render(job, fps, seg_dir):
     out = seg_dir / f"seg_{idx:03d}.mp4"
     mascot = MASCOT_DIR / f"{pose}.png"
     has_m = mascot.exists()
+    degradado = None
 
     if kind == "clip":
         base = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1"
         inputs = ["-stream_loop", "1", "-ss", f"{off:.2f}", "-i", str(src)]
         tflag = ["-t", f"{dur:.2f}"]
     elif kind == "img_panel":
-        # Maqueta A: imagen arriba, panel de texto abajo. El texto no la tapa.
+        # Maqueta B: la imagen ocupa TODO el cuadro y el texto se apoya sobre
+        # una caida a oscuro en el tercio inferior. Asi no se pierde imagen
+        # (la A recortaba el 40% del alto) y queda sitio arriba para los
+        # golpes tipograficos.
+        from src.degradado import asegurar as asegurar_degradado
         frames = max(1, round(dur * fps))
-        alto = int(1920 * ALTO_IMAGEN) // 2 * 2      # par, lo exige el codec
         ax, ay, direction = CAMARAS[idx % len(CAMARAS)]
-        # Las imagenes son 9:16 y la zona es casi cuadrada (1080x1152): al
-        # recortar se pierde casi el 40% del alto. Con el recorte centrado
-        # salian planos de torso sin cabeza. Se sesga fuerte hacia ARRIBA,
-        # que es donde esta la cara en un plano de cuerpo entero.
-        ay = min(ay, 0.12)
+        ay = min(ay, 0.35)
         avance = 0.22 if tipo in ("punch", "cta") else 0.12
-        tope = 1.0 + avance
-        z = f"min(zoom+{avance/frames:.6f},{tope:.2f})"
-        acento = COLOR_ACENTO.get(tipo, "0x22e39a")
-        base = (f"scale={1080*2}:{alto*2}:force_original_aspect_ratio=increase,"
-                f"crop={1080*2}:{alto*2},"
+        z = f"min(zoom+{avance/frames:.6f},{1.0+avance:.2f})"
+        capa = asegurar_degradado()
+
+        base = (f"scale={1080*2}:{1920*2}:force_original_aspect_ratio=increase,"
+                f"crop={1080*2}:{1920*2},"
                 f"zoompan=z='{z}':x='(iw-iw/zoom)*{ax:.2f}':y='(ih-ih/zoom)*{ay:.2f}'"
-                f":d={frames}:s=1080x{alto}:fps={fps},"
-                f"pad=1080:1920:0:0:color={COLOR_PANEL},"
-                f"drawbox=x=0:y={alto}:w=1080:h=8:color={acento}@1:t=fill")
+                f":d={frames}:s=1080x1920:fps={fps}")
         inputs = ["-i", str(src)]
         tflag = ["-frames:v", str(frames)]
+        degradado = capa
 
     else:
         frames = max(1, round(dur * fps))
@@ -361,6 +419,13 @@ def _render(job, fps, seg_dir):
         fc = (f"[0:v]{base}[b];[1:v]scale=-2:620[m];"
               f"[b][m]overlay=x=W-w-30:y=H-h-170+8*sin(2*PI*t/1.2)[v]")
         vmap = "[v]"
+    elif degradado:
+        # el degradado va como entrada aparte, no dentro de base: aqui es
+        # donde se arma el filtergraph completo
+        n_capa = len([a for a in inputs if a == "-i"])
+        inputs += ["-i", str(degradado)]
+        fc = f"[0:v]{base}[b];[b][{n_capa}:v]overlay=0:0[v]"
+        vmap = "[v]"
     else:
         fc = f"[0:v]{base}[v]"
         vmap = "[v]"
@@ -377,7 +442,109 @@ def _ts(s):
     return f"{h}:{m:02d}:{sec:05.2f}"
 
 
-def _generar_subtitulos(items):
+def _ass_ts(s):
+    s = max(0.0, s)
+    h = int(s // 3600)
+    m = int((s % 3600) // 60)
+    return f"{h}:{m:02d}:{s % 60:05.2f}"
+
+
+def _palabra_golpe(texto):
+    """La palabra que se muestra en gigante. La cifra manda; si no, la mas
+    larga, que suele ser la que carga el significado."""
+    try:
+        from src.cifras import analizar
+        info = analizar(texto)
+        if info.get("expresion"):
+            return info["expresion"].strip()
+    except Exception:
+        pass
+    palabras = [p.strip(".,;:¡!¿?\"'") for p in texto.split()]
+    utiles = [p for p in palabras if len(p) > 4]
+    return max(utiles, key=len) if utiles else (palabras[-1] if palabras else "")
+
+
+def _golpes_tipograficos(items):
+    """Palabra clave GIGANTE sobre la imagen, solo en los remates.
+
+    Va en la zona alta del cuadro, que es donde suele haber fondo y no cara.
+    No sustituye al panel: convive con el. Abajo se lee la frase entera —
+    importante para quien ve sin sonido— y arriba entra el golpe grafico.
+    """
+    eventos = []
+    posiciones = [(300, 330), (760, 300), (400, 300), (700, 350)]
+    n = 0
+    for it in items:
+        if it.get("k") not in ("punch", "cta"):
+            continue
+        palabra = _palabra_golpe(it["txt"]).upper()
+        if not palabra or len(palabra) > 16:
+            continue
+        x, y = posiciones[n % len(posiciones)]
+        n += 1
+        ini = it["start"] + 0.06
+        fin = min(it["end"] - 0.05, ini + 1.25)
+        if fin <= ini:
+            continue
+        eventos.append(
+            f"Dialogue: 0,{_ass_ts(ini)},{_ass_ts(fin)},Golpe,,0,0,0,,"
+            f"{{\\pos({x},{y})\\fscx55\\fscy55\\alpha&H60&\\frz{-4 + (n % 3) * 4}"
+            f"\\t(0,140,\\fscx100\\fscy100\\alpha&H00&)"
+            f"\\t({int((fin-ini)*1000)-160},{int((fin-ini)*1000)},\\alpha&HFF&)}}"
+            f"{palabra}")
+    return eventos
+
+
+def _generar_subtitulos_cineticos(items, reparto):
+    """Rotulos que aparecen PALABRA A PALABRA, cada una a su tiempo real.
+
+    No es un subtitulo: es motion graphics. Cada palabra entra con un golpe
+    de escala en el instante exacto en que se pronuncia, y la que suena se
+    resalta. Esto solo es posible porque el alineador da el timing por
+    palabra; con tiempos estimados habria que inventarse el ritmo y se notaria.
+
+    Se emite una linea por palabra con la frase entera, resaltando la actual.
+    Son muchas lineas pero libass las gestiona sin problema.
+    """
+    eventos = []
+    for n, (it, palabras) in enumerate(zip(items, reparto)):
+        if not palabras:
+            continue
+        # tope duro: la frase no puede seguir en pantalla cuando entra la
+        # siguiente, o se pisan dos textos a la vez
+        tope = items[n + 1]["start"] if n + 1 < len(items) else it["end"]
+        tipo = it.get("k", "normal")
+        estilo = "Punch" if tipo == "punch" else ("Hook" if tipo == "hook" else "Default")
+        realce = COLOR_ASS.get(tipo, COLOR_ASS["normal"])
+        textos = [p[2] for p in palabras]
+
+        for i, (ini, fin, _) in enumerate(palabras):
+            sig = palabras[i + 1][0] if i + 1 < len(palabras) else min(it["end"], tope)
+            sig = min(sig, tope)
+            # Nada de duracion minima: estirar una palabra corta la hacia
+            # solaparse con la siguiente y se veian los dos textos encima.
+            # Si la palabra dura un parpadeo, no se dibuja: la linea siguiente
+            # ya la lleva escrita, solo sin el realce.
+            if sig - ini < 0.05:
+                continue
+            partes = []
+            for j, w in enumerate(textos):
+                if j > i:
+                    break                      # aun no se ha dicho
+                if j == i:
+                    # golpe de escala en la palabra que suena ahora
+                    partes.append(
+                        f"{{\\c{realce}\\fscx118\\fscy118"
+                        f"\\t(0,110,\\fscx100\\fscy100)}}{w}{{\\r{estilo}}}")
+                else:
+                    partes.append(w)
+            eventos.append(
+                f"Dialogue: 0,{_ass_ts(ini)},{_ass_ts(sig)},"
+                f"{estilo},,0,0,0,,{' '.join(partes)}")
+    return eventos
+
+
+def _generar_subtitulos(items, reparto=None):
     if not items:
         return
     MEDIA_DIR.mkdir(parents=True, exist_ok=True)
@@ -393,14 +560,29 @@ def _generar_subtitulos(items):
         "Style: Default,DejaVu Sans,64,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,0,2,70,70,420,1",
         "Style: Hook,DejaVu Sans,72,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,0,2,70,70,420,1",
         "Style: Punch,DejaVu Sans,72,&H0000FFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,5,0,2,70,70,420,1",
+        # Golpe: palabra clave gigante sobre la imagen, en los remates.
+        # Alineacion 5 (centrado) porque se posiciona a mano con \pos.
+        "Style: Golpe,DejaVu Sans,150,&H00FFFFFF,&H000000FF,&H00202020,&HA0000000,1,0,0,0,100,100,2,0,1,7,3,5,0,0,0,1",
         "[Events]",
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
-    for it in items:
-        style = {"hook": "Hook", "punch": "Punch", "cta": "Punch"}.get(it["k"], "Default")
-        lines.append(f"Dialogue: 0,{_ts(it['start'])},{_ts(it['end'])},{style},,0,0,0,,{it['txt']}")
+    # Con timing por palabra se animan; sin el, se cae al subtitulo por frase.
+    cineticos = _generar_subtitulos_cineticos(items, reparto) if reparto else []
+    if cineticos:
+        lines += cineticos
+        golpes = _golpes_tipograficos(items)
+        lines += golpes
+        log.info(f"Rotulos cineticos: {len(cineticos)} palabras animadas "
+                 f"en {sum(1 for r in reparto if r)} frases, "
+                 f"{len(golpes)} golpes tipograficos")
+    else:
+        for it in items:
+            style = {"hook": "Hook", "punch": "Punch",
+                     "cta": "Punch"}.get(it["k"], "Default")
+            lines.append(f"Dialogue: 0,{_ts(it['start'])},{_ts(it['end'])},"
+                         f"{style},,0,0,0,,{it['txt']}")
+        log.info(f"Subtitulos con enfasis: {len(items)} lineas")
     (MEDIA_DIR / "subs.ass").write_text("\n".join(lines), encoding="utf-8")
-    log.info(f"Subtitulos con enfasis: {len(items)} lineas")
 
 
 def _final_encode(segments, audio, music, music_vol, out, sfx_cues):
