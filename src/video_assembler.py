@@ -118,6 +118,12 @@ def assemble_video():
     if not clips and not images:
         raise FileNotFoundError("No hay clips ni imagenes.")
 
+    # Anclar los tiempos a la voz REAL antes de decidir nada. El reparto
+    # proporcional acumulaba hasta 4.76s de error, asi que tanto los
+    # subtitulos como los cortes iban por delante de lo que se oye.
+    from src.alineador import alinear
+    items = alinear(items, audio, audio_dur)
+
     # Un plano por beat en vez de un corte cada 3s exactos: el ritmo lo marca
     # el guion. Frase corta, plano corto; remate, plano con punch-in.
     planos = _agrupar_en_planos(items) if items else []
