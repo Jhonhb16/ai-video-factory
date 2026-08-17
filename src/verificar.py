@@ -153,6 +153,11 @@ def revisar_sincronia():
         if not linea.startswith("Dialogue:"):
             continue
         p = linea.split(",", 9)
+        # Los golpes tipograficos no son subtitulo: van arriba, sueltos y de
+        # una palabra. Contarlos partia la cadena de continuacion y descolocaba
+        # el cursor, que reportaba 36s de desfase en un video de 74s.
+        if p[3].strip() == "Golpe":
+            continue
         texto = " ".join(re.sub(r"\{[^}]*\}", "", p[9]).replace("\\N", " ").split())
         if previo and texto.startswith(previo[:max(8, len(previo) - 2)]):
             lineas[-1] = (lineas[-1][0], texto)   # misma frase, texto mas completo
