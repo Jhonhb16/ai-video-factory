@@ -33,10 +33,30 @@ TECNICAS DE COMEDIA OBLIGATORIAS:
 - Autodesprecio o situacion cotidiana exagerada.
 - Callback: al final, referencia al hook.
 - Un dato real de finanzas cada 3-4 lineas (k=dato).
+ESCALADA OBLIGATORIA (regla MrBeast): el video no puede mantener el mismo
+nivel toda la pieza. Cada bloque sube la apuesta respecto al anterior: mas
+incomodo, mas concreto o mas absurdo. El ultimo tercio es el mas fuerte.
+REGLA DEL EXTRANO: por cada linea preguntate si a alguien que no te conoce le
+importaria lo que se dice ahi. Si la respuesta es no, esa linea no se escribe.
 PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es importante".
 PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
-HOOK (3s): curiosidad / identificacion / experiencia vivida.
+HOOK (primeros 3s): TIENE QUE ROMPER EL SCROLL. Nada de tibio ni amable.
+Reglas del hook:
+- Habla de TU, directo, acusador. Nunca "muchas personas" ni "todos alguna vez".
+- Nombra la herida con precision incomoda: la cifra, el numero de años, el
+  detalle que el espectador reconoce y le arde. Ataca la SITUACION, nunca a la
+  persona: si insultas al espectador se va; si le nombras su realidad, se queda.
+- Cero introduccion, cero saludo, cero contexto. Empieza en el golpe.
+- Prohibido suavizar con "quiza", "tal vez", "puede que".
+EJEMPLOS del nivel que se pide:
+  "Llevas seis años trabajando y no aguantas un mes sin sueldo."
+  "Tu jefe sabe que no puedes renunciar. Por eso te trata asi."
+  "Vas a llegar a los cuarenta con la misma cuenta que a los veinte."
+  "Ganas mas que hace tres años y estas igual de quebrado."
+NIVEL PROHIBIDO (demasiado blando, no usar):
+  "Cobras tu quincena y desaparece."   <- es una observacion, no duele
+  "El dinero se va volando."           <- topico sin filo
 PROHIBIDO repetir el hook en los primeros beats. El hook ya se dijo: los beats
 siguientes AVANZAN la historia, no la vuelven a contar troceada.
 ESTRUCTURA: hook → setup (2-3) → 3 bloques comicos con dato → callback → CTA.
@@ -224,9 +244,12 @@ def _validar_y_ajustar(g):
     if any(p in texto for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura")
         return None
-    # medido: 251 palabras dieron 84.7s. ~2,96 palabras/segundo => 70s ≈ 207
-    if not (170 <= palabras <= 235):
-        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (170-235)")
+    # medido: 251 palabras dieron 84.7s. ~2,96 palabras/segundo => 70s ≈ 207.
+    # El techo se sube a 250 porque los guiones agresivos salen mas densos y
+    # se rechazaban 2 de cada 3 por pasarse cinco palabras: tirar buen
+    # material sale mas caro que un video de 82s en vez de 75s.
+    if not (170 <= palabras <= 250):
+        log.warning(f"Guion '{g.get('titulo')}' con {palabras} palabras fuera de rango (170-250)")
         return None
     largos = [b for b in beats if len(b["t"].split()) > 16]
     if len(largos) > 2:
