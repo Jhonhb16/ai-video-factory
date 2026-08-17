@@ -42,6 +42,20 @@ PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es
 PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
 HOOK (primeros 3s): TIENE QUE ROMPER EL SCROLL. Nada de tibio ni amable.
+FAMILIAS DE HOOK (se te indicara cual usar; respetala):
+- dolor: nombra la herida con una cifra o un plazo concreto.
+    "Llevas cinco años cobrando puntual y sigues sin un mes de colchon."
+- advertencia: intercepta algo que el espectador iba a hacer.
+    "Si vas a pedir un prestamo este mes, mira esto antes."
+- comparacion: enfrenta dos opciones REALES que el espectador esta sopesando
+  de verdad, ambas defendibles. Si las dos son malas no hay dilema y nadie
+  opina; eso NO es una comparacion.
+    BIEN: "Que es mejor: pagar la deuda o ahorrar primero. La respuesta incomoda."
+    MAL:  "Que es mejor: gastar en cafe caro o llorar viendo tu cuenta."
+- diferencia: abre un hueco de conocimiento que da verguenza no tener.
+    "La diferencia entre ahorrar e invertir. Casi nadie la sabe y por eso sigue igual."
+- prohibicion: el miedo a estar cometiendo el error ahora mismo.
+    "Nunca metas ahi tus ahorros. Es lo peor que puedes hacer con tu dinero."
 Reglas del hook:
 - Habla de TU, directo, acusador. Nunca "muchas personas" ni "todos alguna vez".
 - Nombra la herida con precision incomoda: la cifra, el numero de años, el
@@ -74,7 +88,7 @@ EJEMPLO DEL TONO EXACTO:
 Responde UNICAMENTE JSON valido:
 {
   "titulo": "maximo 8 palabras",
-  "tipo_hook": "curiosidad / identificacion / experiencia_vivida / negacion_mito",
+  "tipo_hook": "dolor | advertencia | comparacion | diferencia | prohibicion",
   "estructura_usada": "comedia-regla3",
   "hook": "8-15 palabras",
   "beats": [{"t": "linea 5-12 palabras", "k": "normal|punch|dato"}, "..."],
@@ -92,17 +106,57 @@ Devuelve el MISMO JSON completo con "beats" ampliado.
 Responde UNICAMENTE JSON valido."""
 
 
+FAMILIAS_HOOK = ["dolor", "advertencia", "comparacion", "diferencia", "prohibicion"]
+
+
+def _familias_recientes(n=6):
+    """Familias de hook usadas ultimamente, para no repetir siempre la misma.
+
+    Publicando a diario, si todos los videos abren igual la audiencia aprende
+    a reconocer el patron y desliza antes del segundo uno. La variedad del
+    hook no es estetica: es supervivencia.
+    """
+    ruta = Path("output/intelligence/scores_log.csv")
+    if not ruta.exists():
+        return []
+    try:
+        with open(ruta, newline="", encoding="utf-8") as f:
+            filas = list(csv.DictReader(f))
+        return [(r.get("tipo_hook") or "").strip().lower() for r in filas[-n:]]
+    except Exception:
+        return []
+
+
+def _siguiente_familia():
+    usadas = _familias_recientes()
+    libres = [f for f in FAMILIAS_HOOK if f not in usadas]
+    if libres:
+        return libres[0]
+    # todas usadas hace poco: la menos reciente
+    for f in FAMILIAS_HOOK:
+        if f not in usadas[-3:]:
+            return f
+    return FAMILIAS_HOOK[0]
+
+
 def generar_guiones_desde_matrix(n=3, tema_semana=None):
     matrix = cargar_matrix()
     matrix_txt = json.dumps(matrix, ensure_ascii=False)
     tema_txt = f"Tema sugerido: {tema_semana}" if tema_semana else "Elige tu un tema de finanzas personales"
 
+    base = _siguiente_familia()
+    orden = FAMILIAS_HOOK[FAMILIAS_HOOK.index(base):] + FAMILIAS_HOOK[:FAMILIAS_HOOK.index(base)]
+    log.info(f"Familias de hook para hoy: {orden[:n]} (recientes: {_familias_recientes()})")
+
     validos = []
     for i in range(n):
+        familia = orden[i % len(orden)]
         try:
             g = chat_json(
                 SYSTEM_PROMPT,
-                f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\nEscribe el guion COMICO #{i+1} de hoy. JSON de UN solo guion:",
+                f"MATRIX DE VIRALIDAD:\n{matrix_txt}\n{tema_txt}\n\n"
+                f"FAMILIA DE HOOK OBLIGATORIA PARA ESTE GUION: {familia}\n"
+                f"Escribe el guion COMICO #{i+1} de hoy. JSON de UN solo guion:",
                 temperature=0.9, max_tokens=8000)
         except Exception as e:
             log.warning(f"Guion #{i+1} fallo al generar: {e}")
