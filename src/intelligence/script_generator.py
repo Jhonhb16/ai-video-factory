@@ -25,6 +25,17 @@ EJEMPLOS_QUEMADOS = [
     "metodo de sobres", "método de sobres", "pagate a ti mismo primero",
     "págate a ti mismo primero",
 ]
+# Dos lineas rojas del nicho de migrantes. La primera son metaforas de
+# autolesion, que las plataformas penalizan y que ademas se burlan de una
+# situacion real. La segunda es insultar al espectador por mandarle dinero a
+# su familia: el LLM lo hizo solo ("el altruismo estupido destruye tu futuro")
+# pese a que el prompt ya pedia atacar la situacion y no a la persona. Una
+# instruccion que se puede ignorar no es una regla; esto si se comprueba.
+VETO_TONO = [
+    "suicid", "matarte", "matandote", "morirte de hambre", "muriendote de hambre",
+    "altruismo estupido", "altruismo tonto", "eres tonto", "eres estupido",
+    "eres un ingenuo", "por pendejo", "por tonto", "por estupido",
+]
 LECTURA_PROHIBIDA = [
     "en este video", "a continuacion", "en conclusion", "es importante mencionar",
     "como hemos visto", "por lo tanto", "en primer lugar", "estimados",
@@ -67,18 +78,57 @@ adelante, para dar una razon concreta de seguir viendo.
   "Lo peor no es eso. Lo peor viene en diez segundos."
 Cada micro-hook sembrado SE PAGA despues, sin excepcion. Prometer y no
 cumplir quema al espectador para siempre.
+Los ejemplos de arriba son PATRONES, no frases para copiar. PROHIBIDO usar
+literalmente "lo peor viene ahora mismo", "hay un numero que no te van a
+decir" o cualquier otra formula de este prompt: se repetirian video tras
+video y el canal sonaria a plantilla, que es justo lo que las plataformas
+penalizan. Escribe la promesa con las palabras de ESTE guion y de su tema.
 
-MONEDA Y CONTEXTO: SIEMPRE pesos colombianos y realidades locales (la
-quincena, el 15 y el 30, el arriendo, la tienda de la esquina, el Icetex).
-PROHIBIDO hablar en dolares o poner ejemplos gringos: "un cafe de tres
-dolares" no le dice nada a nadie aqui. Se dice "un cafe de seis mil pesos".
-Las cifras deben ser creibles para un sueldo minimo colombiano.
+=== A QUIEN LE HABLAS: FINANZAS PARA MIGRANTES ===
+El publico es hispano viviendo en ESTADOS UNIDOS. Trabaja, manda dinero a su
+pais y navega un sistema financiero que no le explicaron nunca. Se le habla
+en español, en DOLARES, y de SU realidad diaria:
+- Remesas: lo que le cobran por mandar dinero y el tipo de cambio escondido.
+- Credito: llegar sin historial, que le nieguen todo, construirlo desde cero.
+- Impuestos: declarar con ITIN, el W-2 contra el 1099, el reembolso.
+- Banca: por que cambiar el cheque en el supermercado le cuesta una fortuna,
+  abrir cuenta sin numero de seguro social.
+- Renta: que le pidan historial crediticio que no tiene, el deposito doble.
+- Carro: los lotes de "aqui te financiamos" y su interes de usura.
+- Estafas dirigidas a el: el "notario" que no es abogado, el que cobra por
+  formularios gratis.
+- La tension de fondo: mandar todo a casa y no construir nada aqui.
+
+PROHIBIDO el marco de Latinoamerica: la quincena, el 15 y el 30, el arriendo,
+el Icetex, el salario minimo colombiano. Ese publico es otro. Aqui se dice
+renta y no arriendo, cheque y no quincena, y las cifras van en dolares
+creibles para quien gana por hora: una renta de 1.400, un cheque de 800 a la
+semana, 15 dolares por cambiar un cheque, 8 por ciento de comision en una
+remesa.
+NO se asume estatus migratorio ni se dan consejos legales. Se habla de dinero.
+El publico NO es solo mexicano: evita modismos de un solo pais.
+
+=== QUIEN ES EL ENEMIGO (regla que no se rompe) ===
+El hook es agresivo con el SISTEMA, jamas con el espectador. El villano son
+las comisiones, el tipo de cambio escondido, el lote que cobra 29 por ciento,
+el banco que le niega todo. NUNCA su decision de mandarle dinero a su madre.
+PROHIBIDO llamarle tonto, ingenuo o estupido, y PROHIBIDO tratar el sacrificio
+por la familia como un error: para este publico eso no es un gasto, es la
+razon de estar aqui. Se le dice que le estan COBRANDO de mas por ayudar, no
+que ayudar este mal.
+  MAL:  "El altruismo estupido destruye tu futuro."
+  MAL:  "No es generosidad, te estas suicidando financieramente."
+  BIEN: "Mandas para que ellos esten bien. Ocho por ciento se queda en el camino."
+  BIEN: "El problema no es lo que mandas. Es lo que te cobran por mandarlo."
+PROHIBIDO el lenguaje de autolesion o muerte como metafora ("suicidarte",
+"matarte", "morirte de hambre"): las plataformas lo penalizan y ademas suena
+a burla de una situacion real.
 
 DATO EXTRAORDINARIO (minimo 1): una cifra que haga levantar la ceja, concreta
 y sorprendente. No sirve "la mitad se va en lo basico", que ya lo sabe todo
 el mundo. Sirve el tipo de dato que uno le cuenta a otro:
-  "Un cafe de doce mil al dia son cuatro millones al año."
-  "Pagar el minimo de la tarjeta convierte una deuda de un millon en tres."
+  "Quince dolares por cambiar el cheque son setecientos veinte al año."
+  "Ocho por ciento de comision en cada remesa: mil dolares que nunca llegan."
 ESTRUCTURA DEL HILO: hook -> promesa de lo que se va a revelar -> desarrollo
 que avanza -> el dato que sorprende -> pago de las promesas -> CIERRE EPICO.
 
@@ -96,8 +146,8 @@ El cierre epico hace TRES cosas:
 
 Ejemplo. Hook: "Si vas a pagar el minimo este mes, mira esto antes."
   MAL:  "La regla es simple: si no pagas todo, pagas doble."
-  BIEN: "Ese minimo que ibas a pagar hoy son ochenta mil pesos."
-        "En tres años habras pagado dos millones por unos tenis."
+  BIEN: "Ese minimo que ibas a pagar hoy son treinta dolares."
+        "En tres años habras pagado mil cien por unos tenis de doscientos."
         "El minimo no es una ayuda del banco. Es el negocio del banco."
 
 La ultima linea del guion es la MAS FUERTE de todo el video. Si no lo es,
@@ -108,7 +158,7 @@ Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
 HOOK (primeros 3s): TIENE QUE ROMPER EL SCROLL. Nada de tibio ni amable.
 FAMILIAS DE HOOK (se te indicara cual usar; respetala):
 - dolor: nombra la herida con una cifra o un plazo concreto.
-    "Llevas cinco años cobrando puntual y sigues sin un mes de colchon."
+    "Llevas cinco años trabajando aqui y no tienes ni un mes guardado."
 - advertencia: intercepta algo que el espectador iba a hacer.
     "Si vas a pedir un prestamo este mes, mira esto antes."
 - comparacion: enfrenta dos opciones REALES que el espectador esta sopesando
@@ -128,27 +178,27 @@ Reglas del hook:
 - Cero introduccion, cero saludo, cero contexto. Empieza en el golpe.
 - Prohibido suavizar con "quiza", "tal vez", "puede que".
 EJEMPLOS del nivel que se pide:
-  "Llevas seis años trabajando y no aguantas un mes sin sueldo."
+  "Llevas seis años trabajando aqui y el banco te sigue tratando como recien llegado."
+  "Mandaste veinte mil dolares a casa y aqui no tienes ni para un mes."
   "Tu jefe sabe que no puedes renunciar. Por eso te trata asi."
-  "Vas a llegar a los cuarenta con la misma cuenta que a los veinte."
-  "Ganas mas que hace tres años y estas igual de quebrado."
+  "Pagas renta puntual hace cinco años y no te sirve de nada para comprar."
+  "Te cobran quince dolares por darte TU propio dinero."
 NIVEL PROHIBIDO (demasiado blando, no usar):
-  "Cobras tu quincena y desaparece."   <- es una observacion, no duele
+  "Cobras tu cheque y desaparece."     <- es una observacion, no duele
   "El dinero se va volando."           <- topico sin filo
 PROHIBIDO repetir el hook en los primeros beats. El hook ya se dijo: los beats
 siguientes AVANZAN la historia, no la vuelven a contar troceada.
 ESTRUCTURA: hook → setup (2-3) → 3 bloques comicos con dato → callback → CTA.
 TOTAL: 20-24 beats, 190-215 palabras. Minimo 4 beats k=punch y 3 k=dato.
 EJEMPLO DEL TONO EXACTO:
-  {"t": "Llegas al 15.", "k": "normal"}
-  {"t": "Tu cartera: vacia.", "k": "normal"}
-  {"t": "Tu corazon: lleno de esperanza.", "k": "punch"}
-  {"t": "La esperanza no paga la renta.", "k": "punch"}
-  {"t": "La mitad de tu quincena se va en lo fijo.", "k": "dato"}
-  {"t": "Renta, luz, super.", "k": "normal"}
-  {"t": "El 30 en antojos que ni recuerdas.", "k": "dato"}
-  {"t": "Cafe de 60, taxi, la app de comida.", "k": "normal"}
-  {"t": "Tu cafe ya tiene su propio credito.", "k": "punch"}
+  {"t": "Viernes. Llega el cheque.", "k": "normal"}
+  {"t": "Y antes de tocarlo, ya tiene dueño.", "k": "punch"}
+  {"t": "Quince dolares por cambiarlo en el supermercado.", "k": "dato"}
+  {"t": "Pagaste por sacar TU dinero.", "k": "punch"}
+  {"t": "Cuarenta a la semana son dos mil al año.", "k": "dato"}
+  {"t": "Dos mil dolares por no tener una cuenta.", "k": "punch"}
+  {"t": "Y si, se puede abrir con ITIN.", "k": "normal"}
+  {"t": "Nadie te lo dijo porque nadie gana con que lo sepas.", "k": "punch"}
 Responde UNICAMENTE JSON valido:
 {
   "titulo": "maximo 8 palabras",
@@ -156,6 +206,7 @@ Responde UNICAMENTE JSON valido:
   "estructura_usada": "comedia-regla3",
   "hook": "8-15 palabras",
   "beats": [{"t": "linea 5-12 palabras", "k": "normal|punch|dato"}, "..."],
+  "siembras": ["copia EXACTA de los beats que siembran una promesa (minimo 2)"],
   "cta": "maximo 20 palabras",
   "escenas": [{"keyword": "stock search words english", "accion": "que hace el personaje en este escenario", "prompt_imagen": "english description"}],
   "hashtags": ["maximo 5"]
@@ -371,8 +422,30 @@ def _sin_tildes(texto):
                    if unicodedata.category(c) != "Mn")
 
 
-def _contar_microhooks(beats):
-    return sum(1 for b in beats if MICRO_HOOK.search(_sin_tildes(b["t"])))
+def _contar_microhooks(beats, siembras=None):
+    """Cuantas promesas sembradas hay, por las buenas o por las declaradas.
+
+    La regex sola no vale: solo reconoce las formulas que trae este prompt.
+    En cuanto se prohibio copiarlas literalmente (sonaban a plantilla video
+    tras video), el LLM siguio sembrando promesas con otras palabras y el
+    contador se quedo ciego, tumbando guiones perfectamente buenos.
+
+    Por eso el guionista DECLARA cuales son sus siembras y aqui solo se
+    comprueba que existan de verdad entre los beats. Declarar una frase que
+    no esta escrita no cuenta, asi que no se puede inflar el numero.
+    """
+    por_regex = {b["t"] for b in beats if MICRO_HOOK.search(_sin_tildes(b["t"]))}
+
+    textos = {" ".join(_sin_tildes(b["t"]).lower().split()) for b in beats}
+    declaradas = set()
+    for s in (siembras or []):
+        clave = " ".join(_sin_tildes(str(s)).lower().split())
+        if clave and clave in textos:
+            declaradas.add(clave)
+
+    # se unen sin contar dos veces el mismo beat
+    por_regex_norm = {" ".join(_sin_tildes(t).lower().split()) for t in por_regex}
+    return len(por_regex_norm | declaradas)
 
 
 def _redundancia(beats, ventana=4, umbral=0.55):
@@ -492,7 +565,16 @@ def _validar_y_ajustar(g, min_ganchos=2):
     # mitad: una sola se paga pronto y a partir de ahi no queda razon de
     # seguir. Con min_ganchos=1 se acepta lo que haya, para no dejar al canal
     # sin video el dia que ninguno llegue a dos.
-    ganchos = _contar_microhooks(beats)
+    texto_todo = _sin_tildes(" ".join(
+        [g.get("hook", ""), g.get("cta", "")] + [b["t"] for b in beats])).lower()
+    for veto in VETO_TONO:
+        if veto in texto_todo:
+            log.warning(f"Guion '{g.get('titulo')}' descartado: tono vetado "
+                        f"('{veto}'): o insulta al espectador o usa metafora "
+                        f"de autolesion")
+            return None
+
+    ganchos = _contar_microhooks(beats, g.get("siembras"))
     if ganchos < min_ganchos:
         log.warning(f"Guion '{g.get('titulo')}' descartado: {ganchos} "
                     f"micro-hook(s), se piden {min_ganchos} "

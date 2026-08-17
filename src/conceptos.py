@@ -33,7 +33,9 @@ QUEMADOS = [
     "pagate a ti primero", "interes compuesto", "regla de las 48 horas",
 ]
 
-SYS = """Eres editor jefe de un canal de finanzas personales para Latinoamerica.
+SYS = """Eres editor jefe de un canal de FINANZAS PARA MIGRANTES: hispanos que
+viven y trabajan en Estados Unidos, mandan dinero a casa y pelean con un
+sistema financiero que nadie les explico.
 Tu trabajo NO es elegir temas: es encontrar ANGULOS que hagan parar el scroll.
 
 Un tema es "como hacer un presupuesto". Eso no lo ve nadie.
@@ -44,12 +46,20 @@ Un concepto sirve si cumple AL MENOS DOS de estas:
 2. DE ADENTRO: revela como funciona algo por dentro, lo que no te cuentan.
 3. INCOMODO Y PERSONAL: apunta a la situacion real del espectador y escuece.
 4. CONSECUENCIA CONCRETA: dice que le va a pasar, con cifra o plazo.
-5. LOCAL Y ESPECIFICO: precios, sueldos y realidades de Latinoamerica, nunca
-   ejemplos gringos de mil dolares.
+5. ESPECIFICO DEL MIGRANTE: remesas y su comision, historial de credito desde
+   cero, declarar con ITIN, cambiar el cheque sin cuenta, la renta que piden
+   con credito que no tienes, los lotes de carros que financian al 25 por
+   ciento, el "notario" que cobra por formularios gratis. Cifras en dolares
+   de quien gana por hora, no de quien gana cien mil al año.
 
 PROHIBIDO por quemado: la regla 50/30/20, los gastos hormiga, el cafe diario,
 el metodo de sobres, "paguese a usted primero", el interes compuesto explicado
 como en el colegio.
+PROHIBIDO tambien el consejo generico que sirve para cualquiera en cualquier
+pais. Si el angulo funciona igual para alguien en Bogota que para alguien en
+Houston, no es de este canal.
+NO se dan consejos legales ni se especula con el estatus migratorio de nadie.
+Se habla de dinero, que es lo que si podemos explicar.
 
 EL CONCEPTO TIENE QUE TENER RECORRIDO. Un buen titular no basta: si la idea
 se agota en una frase, el guionista la reformula cinco veces para llenar 75
@@ -60,10 +70,10 @@ espectador no sabe, es buen titulo y mal video: descartalo.
 
 Ejemplo de concepto SIN recorrido (rechazar): "tu dinero pierde valor bajo el
 colchon" — es una sola idea, no hay tres revelaciones, solo sinonimos.
-Ejemplo CON recorrido: "por que sigues pagando el arriendo de otro":
-  1. cuanto llevas pagado en arriendo sin tener nada
-  2. el banco te presta menos por ser informal, no por ser pobre
-  3. la cuota que si podrias pagar y nadie te la ofrece
+Ejemplo CON recorrido: "lo que de verdad cuesta mandar dinero a casa":
+  1. la comision que ves, que es la pequeña
+  2. el tipo de cambio, que es donde te cobran de verdad y no aparece
+  3. cuanto suma eso en cinco años mandando cada quincena
 
 El titulo debe tener MENOS de 50 caracteres.
 Responde solo JSON:
@@ -121,8 +131,14 @@ def puntuar(c, titulos_previos):
     # concrecion: cifras, plazos o lugares reales
     if re.search(r"\d", titulo + " " + angulo):
         puntos += 15
-    if re.search(r"colombia|bogota|medellin|cali|peso|quincena|icetex|arriendo"
-                 r"|salario minimo|el 15|el 30", (titulo + " " + angulo).lower()):
+    # Concrecion de MIGRANTE en Estados Unidos. Antes esto premiaba contexto
+    # colombiano (peso, quincena, Icetex, arriendo). Al cambiar el canal a
+    # finanzas para migrantes habria seguido puntuando lo viejo y castigando
+    # lo nuevo: los conceptos buenos no habrian llegado nunca al minimo.
+    if re.search(r"remesa|credito|credit score|historial|itin|w-?2|1099"
+                 r"|impuesto|taxes|reembolso|renta|deposito|cheque|banco"
+                 r"|dolar|seguro social|notario|prestamo|deportacion|frontera"
+                 r"|enviar dinero|mandar dinero", (titulo + " " + angulo).lower()):
         puntos += 15
 
     # segunda persona: habla contigo, no de un tema
