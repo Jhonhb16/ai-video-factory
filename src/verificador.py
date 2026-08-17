@@ -17,6 +17,7 @@ veredicto es DUDOSO y la linea se reescribe: no publicar un dato bueno cuesta
 mucho menos que publicar uno falso.
 """
 import json
+import re
 import logging
 
 from src.llm import chat_json
@@ -58,6 +59,59 @@ Devuelve UNICAMENTE JSON:
                  "motivo": "breve", "arreglo": "como decirlo bien"}]}"""
 
 
+# "X al mes son Y al año" y familia. Estas NO se le preguntan al LLM: se
+# calculan. Cuando se le preguntaron, dio por falsa "mil cuatrocientos al mes
+# son dieciseis mil ochocientos al año" (que es exacta) y dejo pasar otras.
+# Dos de cada diez veredictos suyos sobre aritmetica estaban mal; la
+# multiplicacion sale bien el cien por cien de las veces.
+PERIODOS = [
+    (r"al\s+d[ií]a\b", r"al\s+a[ñn]o\b", 365),
+    (r"al\s+d[ií]a\b", r"al\s+mes\b", 30),
+    (r"a\s+la\s+semana\b|por\s+semana\b|semanales?\b", r"al\s+a[ñn]o\b", 52),
+    (r"a\s+la\s+semana\b|por\s+semana\b|semanales?\b", r"al\s+mes\b", 4),
+    (r"al\s+mes\b|mensuales?\b", r"al\s+a[ñn]o\b", 12),
+]
+
+
+def _comprobar_aritmetica(frase):
+    """Si la frase dice 'X al mes son Y al año', comprueba la cuenta.
+
+    Devuelve None si no aplica o si cuadra; si no, el error concreto.
+    """
+    from src.cifras import _valor_en_palabras
+
+    numeros = []
+    for m in re.finditer(r"\d[\d.,]*", frase):
+        try:
+            numeros.append(float(m.group(0).replace(".", "").replace(",", ".")))
+        except ValueError:
+            pass
+    if len(numeros) < 2:                       # probar con numeros en letra
+        trozos, resto = [], frase
+        while len(trozos) < 2:
+            r = _valor_en_palabras(resto)
+            if not r:
+                break
+            trozos.append(r[0])
+            resto = resto.split(r[2], 1)[-1] if r[2] in resto else ""
+        numeros = trozos if len(trozos) >= 2 else numeros
+    if len(numeros) < 2:
+        return None
+
+    base, total = numeros[0], numeros[1]
+    if base <= 0 or total <= 0:
+        return None
+    for pat_a, pat_b, factor in PERIODOS:
+        if re.search(pat_a, frase, re.I) and re.search(pat_b, frase, re.I):
+            esperado = base * factor
+            # 4% de margen: el guionista redondea a proposito y esta bien
+            if abs(total - esperado) / esperado > 0.04:
+                return (f"la cuenta no sale: {base:.0f} x {factor} = "
+                        f"{esperado:.0f}, no {total:.0f}")
+            return None
+    return None
+
+
 def verificar(guion):
     """Devuelve la lista de afirmaciones problematicas del guion.
 
@@ -86,6 +140,19 @@ def verificar(guion):
         return []
     malas = [x for x in revisiones if isinstance(x, dict)
              and str(x.get("veredicto", "")).upper() in ("FALSA", "DUDOSA")]
+
+    # La aritmetica manda sobre el LLM: si la cuenta sale, se le retira la
+    # acusacion; si no sale, se acusa aunque el la haya aprobado.
+    por_frase = {str(x.get("frase", "")): x for x in malas}
+    for f in frases:
+        error = _comprobar_aritmetica(f)
+        if error and f not in por_frase:
+            por_frase[f] = {"frase": f, "veredicto": "FALSA",
+                            "motivo": error, "arreglo": "corregir la cifra"}
+        elif not error and f in por_frase and "cuenta" in \
+                str(por_frase[f].get("motivo", "")).lower():
+            del por_frase[f]                   # el LLM se equivoco, la cuenta sale
+    malas = list(por_frase.values())
     if malas:
         log.info(f"'{guion.get('titulo')}': {len(malas)} cifras a revisar")
     return malas
