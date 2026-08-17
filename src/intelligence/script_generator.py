@@ -16,6 +16,14 @@ PROHIBIDAS = [
     "rendimiento asegurado", "duplica tu dinero", "sin riesgo",
     "libertad financiera en", "secreto que los bancos",
 ]
+# Ejemplos tan usados en contenido de finanzas que ya no dicen nada. El
+# concepto los penaliza, pero se colaban DENTRO de los guiones igualmente.
+EJEMPLOS_QUEMADOS = [
+    "cafe diario", "café diario", "el cafe de cada", "el café de cada",
+    "gasto hormiga", "gastos hormiga", "regla 50/30/20", "regla 50 30 20",
+    "metodo de sobres", "método de sobres", "pagate a ti mismo primero",
+    "págate a ti mismo primero",
+]
 LECTURA_PROHIBIDA = [
     "en este video", "a continuacion", "en conclusion", "es importante mencionar",
     "como hemos visto", "por lo tanto", "en primer lugar", "estimados",
@@ -38,6 +46,61 @@ nivel toda la pieza. Cada bloque sube la apuesta respecto al anterior: mas
 incomodo, mas concreto o mas absurdo. El ultimo tercio es el mas fuerte.
 REGLA DEL EXTRANO: por cada linea preguntate si a alguien que no te conoce le
 importaria lo que se dice ahi. Si la respuesta es no, esa linea no se escribe.
+
+=== LO MAS IMPORTANTE: EL HILO ===
+El guion NO es una lista de frases ingeniosas sobre un tema. Es UNA historia
+o UN argumento que AVANZA. Cada beat tiene que aportar informacion nueva.
+PROHIBIDO decir lo mismo de cuatro formas distintas. Ejemplo de lo que NO se
+puede hacer, todo seguido:
+  "Llevas cinco años cobrando y sigues sin colchon."
+  "Vives esperando el deposito como si fuera un milagro."
+  "Llega el dinero, respiras y a los tres dias vuela."
+  "Tu cuenta parece zona de guerra."
+Son cuatro maneras de decir "no te alcanza". El espectador ya lo entendio en
+la primera y se va, porque nada le promete algo que todavia no sabe.
+
+MICRO-HOOKS OBLIGATORIOS (minimo 2): promesas sembradas que solo se pagan mas
+adelante, para dar una razon concreta de seguir viendo.
+  "Son tres fugas. La tercera es la que te esta costando el sueldo entero."
+  "Y hay un numero que no te van a decir en el banco. Va al final."
+  "Lo peor no es eso. Lo peor viene en diez segundos."
+Cada micro-hook sembrado SE PAGA despues, sin excepcion. Prometer y no
+cumplir quema al espectador para siempre.
+
+MONEDA Y CONTEXTO: SIEMPRE pesos colombianos y realidades locales (la
+quincena, el 15 y el 30, el arriendo, la tienda de la esquina, el Icetex).
+PROHIBIDO hablar en dolares o poner ejemplos gringos: "un cafe de tres
+dolares" no le dice nada a nadie aqui. Se dice "un cafe de seis mil pesos".
+Las cifras deben ser creibles para un sueldo minimo colombiano.
+
+DATO EXTRAORDINARIO (minimo 1): una cifra que haga levantar la ceja, concreta
+y sorprendente. No sirve "la mitad se va en lo basico", que ya lo sabe todo
+el mundo. Sirve el tipo de dato que uno le cuenta a otro:
+  "Un cafe de doce mil al dia son cuatro millones al año."
+  "Pagar el minimo de la tarjeta convierte una deuda de un millon en tres."
+ESTRUCTURA DEL HILO: hook -> promesa de lo que se va a revelar -> desarrollo
+que avanza -> el dato que sorprende -> pago de las promesas -> CIERRE EPICO.
+
+=== EL CIERRE TIENE QUE RESOLVER EL HOOK ===
+El hook abre una herida; el final la cierra. Los DOS O TRES ULTIMOS BEATS
+deben volver a la ESCENA EXACTA del hook y rematarla. No vale una moraleja
+generica: "la regla es simple, si no pagas todo pagas doble" no resuelve
+nada, es un consejo de manual y el espectador se queda sin la descarga que
+se le prometio.
+
+El cierre epico hace TRES cosas:
+1. VUELVE a la misma escena o premisa con la que abriste, con sus palabras.
+2. LA REMATA con la consecuencia maxima y una CIFRA concreta.
+3. REENCUADRA: lo que parecia una cosa resulta ser otra.
+
+Ejemplo. Hook: "Si vas a pagar el minimo este mes, mira esto antes."
+  MAL:  "La regla es simple: si no pagas todo, pagas doble."
+  BIEN: "Ese minimo que ibas a pagar hoy son ochenta mil pesos."
+        "En tres años habras pagado dos millones por unos tenis."
+        "El minimo no es una ayuda del banco. Es el negocio del banco."
+
+La ultima linea del guion es la MAS FUERTE de todo el video. Si no lo es,
+esta mal colocada.
 PROHIBIDO tono de ensayo: "en este video", "a continuacion", "por lo tanto", "es importante".
 PROHIBIDO escribir acotaciones: nada de "(SFX: ...)", "[musica]", "*sonido*", "PLANO:", "CAMARA:".
 Cada beat es SOLO lo que se dice en voz alta. Nunca repitas un beat.
@@ -263,6 +326,67 @@ def _quitar_eco_del_hook(hook, beats, umbral=0.7, ventana=4):
     return limpios
 
 
+# Marcas de promesa sembrada: dan al espectador una razon concreta de seguir.
+MICRO_HOOK = re.compile(
+    r"\b(el|la)\s+(tercer|tercera|segundo|segunda|ultimo|ultima|peor)\b"
+    r"|\bviene\s+(ahora|en|al)\b"
+    r"|\bal\s+final\b|\bmas\s+adelante\b|\ben\s+\w+\s+segundos\b"
+    r"|\bespera\b|\bpero\s+lo\s+(peor|bueno)\b|\bno\s+te\s+(lo\s+)?(van a |)dicen?\b"
+    r"|\bhay\s+(un|una|tres|dos|cuatro)\b.*\b(que|y)\b",
+    re.IGNORECASE)
+
+
+def _redundancia(beats, ventana=4, umbral=0.55):
+    """Cuenta beats que repiten LITERALMENTE palabras de otro cercano.
+
+    LIMITE IMPORTANTE: solo detecta repeticion de vocabulario. La repeticion
+    que de verdad mata la retencion es la de SIGNIFICADO — decir "sigues sin
+    colchon", "esperas el deposito como un milagro", "a los tres dias vuela"
+    y "tu cuenta parece zona de guerra" son cuatro formas de decir "no te
+    alcanza" sin compartir una sola palabra. Eso no lo puede ver un contador:
+    lo juzga el showrunner, que entiende el sentido.
+    """
+    def utiles(t):
+        return {p.strip(".,;:¡!¿?").lower() for p in t.split() if len(p) > 4}
+
+    repetidos = 0
+    for i, b in enumerate(beats):
+        pa = utiles(b["t"])
+        if len(pa) < 3:
+            continue
+        for j in range(max(0, i - ventana), i):
+            pb = utiles(beats[j]["t"])
+            if not pb:
+                continue
+            solape = len(pa & pb) / min(len(pa), len(pb))
+            if solape >= umbral:
+                repetidos += 1
+                break
+    return repetidos
+
+
+def _callback_al_hook(hook, beats, ultimos=4):
+    """¿Los ultimos beats vuelven a la escena del hook?
+
+    Se mide por vocabulario compartido con el hook. No es perfecto —un
+    callback puede reformular sin repetir palabras— pero pilla el caso
+    frecuente: terminar con una moraleja generica que no tiene nada que ver
+    con la escena con la que se abrio.
+    """
+    if not hook or not beats:
+        return 0
+    def utiles(t):
+        return {p.strip(".,;:¡!¿?").lower() for p in t.split() if len(p) > 3}
+    ph = utiles(hook)
+    if not ph:
+        return 0
+    coincidencias = 0
+    for b in beats[-ultimos:]:
+        if ph & utiles(b["t"]):
+            coincidencias += 1
+    return coincidencias
+
+
 def _validar_y_ajustar(g):
     if not isinstance(g, dict):
         return None
@@ -298,6 +422,11 @@ def _validar_y_ajustar(g):
     if any(p in texto for p in LECTURA_PROHIBIDA):
         log.warning(f"Guion '{g.get('titulo')}' descartado: tono de lectura")
         return None
+    quemados = [q for q in EJEMPLOS_QUEMADOS if q in texto]
+    if quemados:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: ejemplo quemado "
+                    f"({quemados[0]})")
+        return None
     # medido: 251 palabras dieron 84.7s. ~2,96 palabras/segundo => 70s ≈ 207.
     # El techo se sube a 250 porque los guiones agresivos salen mas densos y
     # se rechazaban 2 de cada 3 por pasarse cinco palabras: tirar buen
@@ -312,6 +441,32 @@ def _validar_y_ajustar(g):
     if sum(1 for b in beats if b["k"] == "punch") < 2:
         log.warning(f"Guion '{g.get('titulo')}' sin suficientes punchlines")
         return None
+
+    # Sin hilo no hay retencion: un guion que repite la misma idea se abandona
+    repes = _redundancia(beats)
+    if repes > max(2, len(beats) * 0.15):
+        log.warning(f"Guion '{g.get('titulo')}' descartado: {repes} beats "
+                    f"repiten ideas ya dichas (no avanza)")
+        return None
+
+    ganchos = sum(1 for b in beats if MICRO_HOOK.search(b["t"]))
+    if ganchos == 0:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: sin micro-hooks "
+                    f"(nada que prometa al espectador seguir viendo)")
+        return None
+
+    # El cierre debe volver a la escena del hook. Sin callback, el video
+    # termina en una moraleja de manual y el espectador se queda sin la
+    # descarga que el hook le prometio.
+    cierre = _callback_al_hook(g.get("hook", ""), beats)
+    if not cierre:
+        log.warning(f"Guion '{g.get('titulo')}' descartado: el final no "
+                    f"resuelve el hook (sin callback en los ultimos beats)")
+        return None
+
+    g["_redundancia"] = repes
+    g["_microhooks"] = ganchos
+    g["_callback"] = cierre
 
     g["beats"] = beats
     g["guion"] = "\n".join(b["t"] for b in beats)

@@ -1,6 +1,8 @@
 proyecto:
   nombre: "AI Video Factory - Dinero Inteligente"
   nicho: "finanzas_personales"
+  publico: "22 a 35 años en Colombia, vive al dia, sueldo cercano al minimo"
+  moneda: "pesos colombianos"
   idioma: "es"
   # 70s: sigue por encima del minimo de 60s que exigen los in-stream ads de
   # Meta, pero mucho mas cerca del rango donde el algoritmo no castiga. A
