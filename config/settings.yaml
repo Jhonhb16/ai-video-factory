@@ -13,6 +13,10 @@ contenido:
   resolucion: [1080, 1920]
   fps: 30
   estilo_visual: "cinematic_financial"
+  # "panel": imagen al 60% superior y texto en banda oscura abajo, sin solape.
+  # Esa banda es la misma zona donde van los graficos de cifras, asi que
+  # imagenes y datos comparten una sola reticula. "completa" = como antes.
+  maqueta: "panel"
   musica_fondo: true
   # Con ducking la musica puede ir mas alta: baja sola bajo la voz y llena
   # las pausas. A 0.15 fijo practicamente no se oia.
