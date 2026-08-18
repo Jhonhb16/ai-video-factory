@@ -22,9 +22,16 @@ from src.utils import run_cmd
 
 log = logging.getLogger("VideoFactory.Doblaje")
 
-# Palabras por segundo de una voz natural en español, medida sobre la propia
-# TTS del canal. Se usa para saber cuantas palabras CABEN en cada hueco.
-RITMO = 2.6
+# Palabras por segundo, MEDIDO sobre audio real de la voz que se usa.
+#
+# Estaba en 2.6 y era falso: esa cifra salia de la voz del canal, que corre a
+# 1.2x y con diccion de Reel. Al medir la voz de doblaje a ritmo natural sobre
+# 7 lineas reales dio 1.72, o sea que el limite de palabras estaba inflado un
+# 51% y TODAS las lineas se salian de su hueco (105% a 147%).
+#
+# Si se cambia de voz o de velocidad, hay que volver a medirlo: es el numero
+# del que depende que el doblaje encaje.
+RITMO = 1.72
 TEMPO_MAX = 1.06        # correccion de tempo que el oido no detecta
 
 PROMPT = """Eres ajustador de doblaje al español latino neutro.

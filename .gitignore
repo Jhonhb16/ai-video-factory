@@ -11,3 +11,4 @@ __pycache__/
 # material en bruto: video de personas reales y descartes
 assets/rodaje/*.mp4
 assets/rodaje/*.mov
+output/cliente/
