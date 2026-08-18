@@ -255,6 +255,22 @@ COHERENCIA: dos cifras del mismo guion no pueden contradecirse. Si dices que
 la comision es del ocho por ciento, no digas despues que llega menos del diez
 por ciento del dinero.
 
+=== DE DONDE SALEN LAS CIFRAS (regla dura) ===
+PROHIBIDO inventar estadisticas y PROHIBIDO citar instituciones. Nada de
+"segun la CFPB", "segun Forbes", "el Banco Mundial reporta", "ocho de cada
+diez", "el setenta por ciento de los inquilinos". No tienes forma de saberlo
+y suena a autoridad falsa: a este publico le puede costar dinero de verdad.
+
+Las UNICAS cifras que valen son dos:
+1. PRECIOS Y TARIFAS reales del dia a dia: 35 dolares de sobregiro, 3 a 10
+   por ciento de comision en una remesa, 25 a 30 por ciento de interes en un
+   lote de carros, 15 dolares por cambiar un cheque.
+2. LA CUENTA QUE TU MISMO HACES con ese precio delante del espectador:
+   "quince a la semana son setecientos ochenta al año". Y tiene que salir
+   bien: si multiplicas mal, el video entero pierde credibilidad.
+El dato que impresiona no es el que cita a un organismo, es el que multiplica
+un gasto pequeño por el tiempo que lleva pagandolo.
+
 DATO EXTRAORDINARIO (minimo 1): una cifra que haga levantar la ceja, concreta
 y sorprendente. No sirve "la mitad se va en lo basico", que ya lo sabe todo
 el mundo. Sirve el tipo de dato que uno le cuenta a otro:

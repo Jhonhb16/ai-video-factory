@@ -92,7 +92,11 @@ def _comprobar_aritmetica(frase):
             r = _valor_en_palabras(resto)
             if not r:
                 break
-            trozos.append(r[0])
+            # "un"/"una" casi siempre son articulo, no cantidad: en "cuarenta
+            # dolares por UN sobregiro al mes son cuatrocientos ochenta" el 1
+            # se colaba como segundo numero y acusaba de mala una cuenta exacta
+            if not (r[0] == 1 and r[2].strip().lower() in ("un", "una", "uno")):
+                trozos.append(r[0])
             resto = resto.split(r[2], 1)[-1] if r[2] in resto else ""
         numeros = trozos if len(trozos) >= 2 else numeros
     if len(numeros) < 2:
