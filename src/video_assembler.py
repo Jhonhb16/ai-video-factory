@@ -169,8 +169,16 @@ def assemble_video():
             off = min((s // len(clips)) * dur, max(0.0, cd - dur - 0.3))
             jobs.append(("clip", clip, off, s, pose, dur, p["k"]))
         else:
-            modo = "img_panel" if maqueta == "panel" else "img"
-            jobs.append((modo, images[p["idx"] % len(images)], 0, s, pose, dur, p["k"]))
+            imagen = images[p["idx"] % len(images)]
+            # Las tarjetas de cifra se generan animadas (la cifra CUENTA hasta
+            # su valor). Si existe el mp4 hermano de la imagen, ese plano entra
+            # por la via de video en vez de por la de imagen fija.
+            animada = imagen.with_suffix(".mp4")
+            if animada.exists():
+                jobs.append(("clip", animada, 0, s, pose, dur, p["k"]))
+            else:
+                modo = "img_panel" if maqueta == "panel" else "img"
+                jobs.append((modo, imagen, 0, s, pose, dur, p["k"]))
 
     with ThreadPoolExecutor(max_workers=4) as ex:
         list(ex.map(lambda j: _render(j, fps, seg_dir), jobs))

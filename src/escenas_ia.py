@@ -204,10 +204,23 @@ def _tarjeta_de_cifra(item, indice, contador=[0]):
         # una cifra de 0 o 1 no merece pantalla completa
         if info.get("valor", 0) < 2:
             return None
-        ruta = tarjeta(item.get("txt") or item.get("t") or "", info,
-                       item.get("k", "dato"), destino=SALIDA / f"img_{indice:03d}.png")
-        if ruta:
-            contador[0] += 1
+        frase = item.get("txt") or item.get("t") or ""
+        beat = item.get("k", "dato")
+        png = SALIDA / f"img_{indice:03d}.png"
+        ruta = tarjeta(frase, info, beat, destino=png)
+        if not ruta:
+            return None
+        contador[0] += 1
+        # Ademas de la imagen (que sirve de respaldo y de conteo) se genera la
+        # version animada: una cifra que sube de 0 a su valor mientras la voz
+        # la dice se recuerda; una que aparece de golpe se lee y se olvida.
+        try:
+            from src.graficos import tarjeta_animada
+            dur = float(item.get("end", 0)) - float(item.get("start", 0))
+            tarjeta_animada(frase, info, beat, destino=png.with_suffix(".mp4"),
+                            segundos=max(1.6, min(4.0, dur or 2.6)))
+        except Exception as e:
+            log.warning(f"Tarjeta {indice} sin animar ({str(e)[:70]})")
         return ruta
     except Exception as e:
         log.warning(f"No se pudo dibujar la tarjeta del plano {indice} ({e})")

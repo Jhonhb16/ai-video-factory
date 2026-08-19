@@ -269,3 +269,86 @@ def _contexto(frase, expresion=""):
             continue
         return p
     return ""
+
+
+# ------------------------------------------------------- tarjeta animada
+#
+# La version estatica ya funcionaba, pero una cifra que APARECE y una cifra
+# que CUENTA no producen el mismo efecto. En un canal donde el dato ES el
+# contenido, verlo subir de 0 a 800 mientras la voz lo dice hace que se
+# recuerde; verlo aparecer de golpe se lee y se olvida.
+#
+# Se genera fotograma a fotograma con PIL y se encodea. No hace falta un motor
+# de animacion para esto: son tres valores interpolados.
+
+def _suave(t):
+    """Curva de salida: arranca rapido y frena al final.
+
+    Lineal se ve mecanico, como un contador de gasolinera. Esta curva imita
+    como se detiene algo con inercia, que es lo que el ojo espera.
+    """
+    return 1 - (1 - t) ** 3
+
+
+def tarjeta_animada(frase, info, beat="dato", destino=None, segundos=2.6,
+                    fps=25):
+    """Version en movimiento de `tarjeta`. Devuelve la ruta del mp4 o None."""
+    import subprocess
+    import tempfile
+
+    tipo = (info or {}).get("tipo", "texto")
+    if tipo not in ("cifra", "porcentaje"):
+        return None
+
+    color = COLOR_BEAT.get(beat, VERDE)
+    valor = info.get("valor", 0)
+    unidad = info.get("unidad", "")
+    clave = _contexto(frase, info.get("expresion", ""))
+    icono = _icono_para(frase)
+    fondo = _fondo()                      # se calcula una vez, no por fotograma
+
+    n = max(2, int(segundos * fps))
+    tmp = Path(tempfile.mkdtemp(prefix="tarjeta_"))
+    for k in range(n):
+        t = _suave(min(1.0, k / (n * 0.62)))     # la cuenta acaba antes del final
+        img = fondo.copy()
+        d = ImageDraw.Draw(img)
+
+        # el icono entra creciendo en los primeros fotogramas
+        s = int(200 * min(1.0, (k / max(1, n * 0.18)) ** 0.5))
+        if s > 8:
+            ICONOS[icono](d, (W - s) // 2, 470 + (200 - s) // 2, s, color)
+
+        # la cifra sube hasta su valor
+        actual = valor * t
+        texto = formatear(int(round(actual)), unidad)
+        tam = 340 if len(texto) <= 3 else 280 if len(texto) <= 5 else 210
+        fuente = _fuente(tam)
+        while d.textbbox((0, 0), texto, font=fuente)[2] > W - 120 and tam > 90:
+            tam -= 20
+            fuente = _fuente(tam)
+        _centrar(d, texto, fuente, 800, color)
+
+        if tipo == "porcentaje":
+            _barra(d, 1210, valor * t, color)
+
+        # la palabra de contexto entra despues, cuando la cifra ya casi esta
+        if clave and k > n * 0.45:
+            _centrar(d, clave.upper(), _fuente(64),
+                     1330 if tipo != "porcentaje" else 1310, TENUE)
+
+        img.save(tmp / f"f{k:04d}.png")
+
+    destino = Path(destino) if destino else Path("output/images/tarjeta.mp4")
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    r = subprocess.run(
+        ["ffmpeg", "-y", "-framerate", str(fps), "-i", str(tmp / "f%04d.png"),
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+         "-pix_fmt", "yuv420p", str(destino)], capture_output=True, text=True)
+    for f in tmp.glob("*.png"):
+        f.unlink()
+    tmp.rmdir()
+    if r.returncode != 0:
+        log.warning(f"No se pudo encodear la tarjeta animada: {r.stderr[-200:]}")
+        return None
+    return destino
