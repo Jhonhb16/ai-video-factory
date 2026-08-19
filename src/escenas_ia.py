@@ -41,11 +41,32 @@ Responde solo JSON:
 {"elenco":[{"id":"casero","papel":"quien es en una frase",
             "descripcion":"english visual description"}]}"""
 
-SYS_ESCENAS = """Eres director de arte. Para cada frase describes UNA escena
-visual concreta en INGLES y dices que personaje aparece.
-Reglas: escena cotidiana latinoamericana, concreta y visual (nada abstracto),
+SYS_ESCENAS = """Eres director de arte de un canal de COMEDIA financiera.
+Para cada frase describes UNA escena visual concreta en INGLES y dices que
+personaje aparece.
+
+Cada frase viene con su TIPO, y el tipo manda:
+
+[punch] = ES UN CHISTE. La imagen tiene que ser graciosa POR SI SOLA, aunque
+  se vea sin sonido. Aqui se exagera: escala absurda (una montaña de recibos
+  hasta el techo), reaccion facial extrema, metafora literal (el personaje
+  literalmente ahogandose en billetes), objeto fuera de lugar. Si la escena de
+  un punch podria ilustrar tambien una frase seria, esta MAL: no es un chiste,
+  es una ilustracion.
+[dato] = una cifra. Escena sobria y limpia, que la cifra es la protagonista.
+[normal] = escena cotidiana concreta, sin exagerar.
+
+Reglas comunes: realidad latinoamericana, concreta y visual (nada abstracto),
 una sola accion clara. NO describas al personaje (viene por referencia), solo
-que hace y donde. El protagonista debe aparecer en la mayoria de las frases.
+que hace y donde. El protagonista aparece en la mayoria de las frases.
+
+Ejemplos de la diferencia, misma idea:
+  frase [normal] "pagas la renta cada mes"
+     -> "handing cash to a landlord at an apartment door"
+  frase [punch] "tu renta se lleva medio sueldo"
+     -> "tiny person carrying a giant house on his back, bending under the
+         weight, neighbors watching from a balcony"
+
 Responde solo JSON:
 {"escenas":[{"i":0,"personaje":"id del elenco","escena":"english scene"}]}"""
 
@@ -137,7 +158,11 @@ def _retratos(elenco, fecha):
 
 def _plan_escenas(guion, items, elenco):
     ids = [p.get("id", str(i)) for i, p in enumerate(elenco)]
-    lista = "\n".join(f'{i}: {it["txt"]}' for i, it in enumerate(items))
+    # El TIPO de cada frase viaja con ella: sin eso el director de arte no
+    # sabe cuales son los chistes y los ilustra igual que el resto, asi que el
+    # remate se oye pero no se ve.
+    lista = "\n".join(f'{i} [{it.get("k", "normal")}]: {it["txt"]}'
+                      for i, it in enumerate(items))
     fichas = "\n".join(f'- {p.get("id")}: {p.get("papel","")}' for p in elenco)
     try:
         r = chat_json(SYS_ESCENAS,
