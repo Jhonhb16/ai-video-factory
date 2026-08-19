@@ -10,7 +10,17 @@ log = logging.getLogger("VideoFactory.LLM")
 # Los gemini-2.0-* fueron retirados (404), igual que paso antes con 1.5-flash.
 # Los alias "-latest" NO caducan: Google los reapunta solo. Eso corta de raiz
 # el bug recurrente de "modelo muerto".
-GEMINI_MODELS = ["gemini-3.5-flash",            # preferido
+# Orden probado el 18-ago-2026 sobre una tarea real del proyecto:
+#   3.7-flash  6/6 exitosos, pero irregular: 1.2-1.8s casi siempre y una de
+#              cada seis tardo 27s o devolvio algo que no era JSON. Recien
+#              salido y con mucha demanda (da 503 a ratos).
+#   3.6-flash  RECHAZA nuestra configuracion (400) y sin ella responde vacio.
+#              Fuera de la lista hasta que eso cambie.
+#   3.5-flash  1.58s y estable. Es la red de seguridad real.
+# Se pone el 3.7 delante para aprovecharlo y el 3.5 justo detras, que es quien
+# recoge sus 503 sin que se note.
+GEMINI_MODELS = ["gemini-3.7-flash",            # preferido, mas capaz
+                 "gemini-3.5-flash",            # respaldo estable
                  "gemini-flash-lite-latest",    # alias, cuota gratis mas alta
                  "gemini-flash-latest",         # alias
                  "gemini-2.5-flash"]            # ancla verificada
