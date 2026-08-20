@@ -256,8 +256,19 @@ def generar_escenas_ia(guion, items, fecha):
 
     plan = _plan_escenas(guion, items, elenco)
     SALIDA.mkdir(parents=True, exist_ok=True)
-    for viejo in SALIDA.glob("img_*.png"):
+    # Se limpia TODO lo del video anterior, no solo los png.
+    #
+    # Cuando se añadieron las tarjetas animadas esta linea seguia borrando
+    # solo *.png, asi que los *.mp4 de la corrida anterior sobrevivian y el
+    # montador los emparejaba con las imagenes NUEVAS del mismo indice: el
+    # video salia con cifras de otro guion encima. No fallaba, no avisaba, y
+    # el resultado parecia correcto: el peor tipo de error posible.
+    for viejo in list(SALIDA.glob("img_*.png")) + list(SALIDA.glob("img_*.mp4")):
         viejo.unlink()
+    clips_previos = Path("output/media/clips_ia")
+    if clips_previos.exists():
+        for viejo in clips_previos.glob("*.mp4"):
+            viejo.unlink()
 
     # los momentos que merecen clip: los punch mas separados entre si
     candidatos = [i for i, it in enumerate(items) if it.get("k") in ("punch", "hook")]

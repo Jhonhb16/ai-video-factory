@@ -174,7 +174,15 @@ def assemble_video():
             # su valor). Si existe el mp4 hermano de la imagen, ese plano entra
             # por la via de video en vez de por la de imagen fija.
             animada = imagen.with_suffix(".mp4")
-            if animada.exists():
+            # Segunda defensa: si el mp4 es MAS VIEJO que su imagen, es de una
+            # corrida anterior y mostraria la cifra de otro guion. Se ignora.
+            # La limpieza ya deberia haberlo borrado, pero un video con datos
+            # falsos que parece correcto es demasiado caro para fiarlo a un
+            # solo control.
+            if animada.exists() and animada.stat().st_mtime + 1 < imagen.stat().st_mtime:
+                log.warning(f"{animada.name} es de una corrida anterior; se ignora")
+                animada = None
+            if animada and animada.exists():
                 jobs.append(("clip", animada, 0, s, pose, dur, p["k"]))
             else:
                 modo = "img_panel" if maqueta == "panel" else "img"
