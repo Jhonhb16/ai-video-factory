@@ -127,7 +127,31 @@ def assemble_video():
         guion = {}
     items = _beat_timeline(guion, audio_dur)
 
+    # Los clips generados con IA viven en output/media/clips_ia/, no sueltos
+    # en output/media/. Esta linea buscaba solo en la carpeta padre, asi que
+    # los clips se generaban, se pagaban ($0.235 cada uno) y NUNCA salian en
+    # el video. verificar.py los contaba en su sitio real, asi que el chequeo
+    # decia "2 clips animados" y todo parecia correcto.
     clips = sorted(MEDIA_DIR.glob("clip_*.mp4")) if MEDIA_DIR.exists() else []
+
+    # Los clips generados con IA son para UN plano concreto, no b-roll de
+    # relleno: clip_010.mp4 acompaña a img_010.png. Meterlos en la lista de
+    # arriba pondria el mismo clip en los 25 planos.
+    #
+    # Estaban en output/media/clips_ia/ y el montador solo miraba la carpeta
+    # padre, asi que se generaban, se pagaban ($0.235 cada uno) y NUNCA salian
+    # en el video. verificar.py los contaba en su sitio real y el chequeo
+    # decia "2 clips animados", asi que nada delataba el fallo.
+    clips_por_indice = {}
+    carpeta_ia = MEDIA_DIR / "clips_ia"
+    if carpeta_ia.exists():
+        for c in carpeta_ia.glob("clip_*.mp4"):
+            try:
+                clips_por_indice[int(c.stem.split("_")[1])] = c
+            except (IndexError, ValueError):
+                continue
+        if clips_por_indice:
+            log.info(f"{len(clips_por_indice)} clips animados disponibles")
     images = sorted(IMG_DIR.glob("img_*.png")) if IMG_DIR.exists() else []
     if not clips and not images:
         raise FileNotFoundError("No hay clips ni imagenes.")
@@ -173,6 +197,12 @@ def assemble_video():
             # Las tarjetas de cifra se generan animadas (la cifra CUENTA hasta
             # su valor). Si existe el mp4 hermano de la imagen, ese plano entra
             # por la via de video en vez de por la de imagen fija.
+            # el clip animado de ese plano manda sobre la imagen fija
+            propio = clips_por_indice.get(p["idx"] % len(images) + 1)
+            if propio and propio.exists():
+                jobs.append(("clip", propio, 0, s, pose, dur, p["k"]))
+                continue
+
             animada = imagen.with_suffix(".mp4")
             # Segunda defensa: si el mp4 es MAS VIEJO que su imagen, es de una
             # corrida anterior y mostraria la cifra de otro guion. Se ignora.
